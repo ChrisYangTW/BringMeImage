@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Help Me Download (just for Civit)</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout" stretch="1,1,2,0,2">
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_1" stretch="2,14,2">
+      <item>
+       <widget class="QLabel" name="folder_label">
+        <property name="text">
+         <string>Folder</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="folder_line_edit">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="choose_folder_button">
+        <property name="text">
+         <string>Folder</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="2,0,0,0">
+      <item>
+       <widget class="QPushButton" name="start_clip_push_button">
+        <property name="text">
+         <string>Start Clip</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="civitai_check_box">
+        <property name="toolTip">
+         <string>Analyzing the image links for civitai</string>
+        </property>
+        <property name="text">
+         <string>CivitAI</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="categorize_check_box">
+        <property name="toolTip">
+         <string>Automatically categorizing the path for storing images (with &quot;CivitAI&quot; checkbox selected)</string>
+        </property>
+        <property name="text">
+         <string>Categorize</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="stayon_check_box">
+        <property name="toolTip">
+         <string>Keep the window always on top</string>
+        </property>
+        <property name="text">
+         <string>StayOn</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <widget class="QTextBrowser" name="operation_text_browser"/>
+    </item>
+    <item>
+     <widget class="QLabel" name="label">
+      <property name="text">
+       <string>Download task message</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignCenter</set>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QTextBrowser" name="result_text_browser"/>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>800</width>
+     <height>37</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuShow">
+    <property name="title">
+     <string>Show</string>
+    </property>
+    <addaction name="actionShowHistory"/>
+    <addaction name="actionShowFailUrl"/>
+   </widget>
+   <widget class="QMenu" name="menuDev">
+    <property name="title">
+     <string>Dev</string>
+    </property>
+    <addaction name="actionDownloadMode"/>
+   </widget>
+   <addaction name="menuShow"/>
+   <addaction name="menuDev"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionShowHistory">
+   <property name="text">
+    <string>Show History</string>
+   </property>
+  </action>
+  <action name="actionShowFailUrl">
+   <property name="text">
+    <string>Show Failed URLs</string>
+   </property>
+  </action>
+  <action name="actionDownloadMode">
+   <property name="text">
+    <string>Download Mode</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
