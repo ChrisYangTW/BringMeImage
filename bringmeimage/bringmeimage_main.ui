@@ -14,7 +14,7 @@
    <string>Help Me Download (just for Civit)</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QVBoxLayout" name="verticalLayout" stretch="1,1,2,0,2">
+   <layout class="QVBoxLayout" name="verticalLayout" stretch="1,1,2,2">
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout_1" stretch="2,14,2">
       <item>
@@ -44,11 +44,18 @@
      </layout>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="2,0,0,0">
+     <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="4,4,1,1,1">
       <item>
-       <widget class="QPushButton" name="start_clip_push_button">
+       <widget class="QPushButton" name="clip_push_button">
         <property name="text">
-         <string>Start Clip</string>
+         <string>Clip</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="go_push_button">
+        <property name="text">
+         <string>Go</string>
         </property>
        </widget>
       </item>
@@ -79,12 +86,18 @@
        </widget>
       </item>
       <item>
-       <widget class="QCheckBox" name="stayon_check_box">
+       <widget class="QCheckBox" name="clear_check_box">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
         <property name="toolTip">
-         <string>Keep the window always on top</string>
+         <string>&quot;Clip&quot; executes, clear previously recorded URLs</string>
         </property>
         <property name="text">
-         <string>StayOn</string>
+         <string>Clear</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -92,16 +105,6 @@
     </item>
     <item>
      <widget class="QTextBrowser" name="operation_text_browser"/>
-    </item>
-    <item>
-     <widget class="QLabel" name="label">
-      <property name="text">
-       <string>Download task message</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignCenter</set>
-      </property>
-     </widget>
     </item>
     <item>
      <widget class="QTextBrowser" name="result_text_browser"/>
@@ -117,11 +120,11 @@
      <height>37</height>
     </rect>
    </property>
-   <widget class="QMenu" name="menuShow">
+   <widget class="QMenu" name="menuOption">
     <property name="title">
-     <string>Show</string>
+     <string>Option</string>
     </property>
-    <addaction name="actionShowHistory"/>
+    <addaction name="actionLoadClipboardFile"/>
     <addaction name="actionShowFailUrl"/>
    </widget>
    <widget class="QMenu" name="menuDev">
@@ -130,13 +133,13 @@
     </property>
     <addaction name="actionDownloadMode"/>
    </widget>
-   <addaction name="menuShow"/>
+   <addaction name="menuOption"/>
    <addaction name="menuDev"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
-  <action name="actionShowHistory">
+  <action name="actionLoadClipboardFile">
    <property name="text">
-    <string>Show History</string>
+    <string>Load Clipboard File</string>
    </property>
   </action>
   <action name="actionShowFailUrl">

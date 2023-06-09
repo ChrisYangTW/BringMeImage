@@ -26,8 +26,8 @@ class Ui_MainWindow(object):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
         MainWindow.resize(800, 600)
-        self.actionShowHistory = QAction(MainWindow)
-        self.actionShowHistory.setObjectName(u"actionShowHistory")
+        self.actionLoadClipboardFile = QAction(MainWindow)
+        self.actionLoadClipboardFile.setObjectName(u"actionLoadClipboardFile")
         self.actionShowFailUrl = QAction(MainWindow)
         self.actionShowFailUrl.setObjectName(u"actionShowFailUrl")
         self.actionDownloadMode = QAction(MainWindow)
@@ -63,10 +63,15 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_2 = QHBoxLayout()
         self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
-        self.start_clip_push_button = QPushButton(self.centralwidget)
-        self.start_clip_push_button.setObjectName(u"start_clip_push_button")
+        self.clip_push_button = QPushButton(self.centralwidget)
+        self.clip_push_button.setObjectName(u"clip_push_button")
 
-        self.horizontalLayout_2.addWidget(self.start_clip_push_button)
+        self.horizontalLayout_2.addWidget(self.clip_push_button)
+
+        self.go_push_button = QPushButton(self.centralwidget)
+        self.go_push_button.setObjectName(u"go_push_button")
+
+        self.horizontalLayout_2.addWidget(self.go_push_button)
 
         self.civitai_check_box = QCheckBox(self.centralwidget)
         self.civitai_check_box.setObjectName(u"civitai_check_box")
@@ -80,12 +85,18 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_2.addWidget(self.categorize_check_box)
 
-        self.stayon_check_box = QCheckBox(self.centralwidget)
-        self.stayon_check_box.setObjectName(u"stayon_check_box")
+        self.clear_check_box = QCheckBox(self.centralwidget)
+        self.clear_check_box.setObjectName(u"clear_check_box")
+        self.clear_check_box.setEnabled(False)
+        self.clear_check_box.setChecked(True)
 
-        self.horizontalLayout_2.addWidget(self.stayon_check_box)
+        self.horizontalLayout_2.addWidget(self.clear_check_box)
 
-        self.horizontalLayout_2.setStretch(0, 2)
+        self.horizontalLayout_2.setStretch(0, 4)
+        self.horizontalLayout_2.setStretch(1, 4)
+        self.horizontalLayout_2.setStretch(2, 1)
+        self.horizontalLayout_2.setStretch(3, 1)
+        self.horizontalLayout_2.setStretch(4, 1)
 
         self.verticalLayout.addLayout(self.horizontalLayout_2)
 
@@ -93,12 +104,6 @@ class Ui_MainWindow(object):
         self.operation_text_browser.setObjectName(u"operation_text_browser")
 
         self.verticalLayout.addWidget(self.operation_text_browser)
-
-        self.label = QLabel(self.centralwidget)
-        self.label.setObjectName(u"label")
-        self.label.setAlignment(Qt.AlignCenter)
-
-        self.verticalLayout.addWidget(self.label)
 
         self.result_text_browser = QTextBrowser(self.centralwidget)
         self.result_text_browser.setObjectName(u"result_text_browser")
@@ -108,13 +113,13 @@ class Ui_MainWindow(object):
         self.verticalLayout.setStretch(0, 1)
         self.verticalLayout.setStretch(1, 1)
         self.verticalLayout.setStretch(2, 2)
-        self.verticalLayout.setStretch(4, 2)
+        self.verticalLayout.setStretch(3, 2)
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
         self.menubar.setGeometry(QRect(0, 0, 800, 37))
-        self.menuShow = QMenu(self.menubar)
-        self.menuShow.setObjectName(u"menuShow")
+        self.menuOption = QMenu(self.menubar)
+        self.menuOption.setObjectName(u"menuOption")
         self.menuDev = QMenu(self.menubar)
         self.menuDev.setObjectName(u"menuDev")
         MainWindow.setMenuBar(self.menubar)
@@ -122,10 +127,10 @@ class Ui_MainWindow(object):
         self.statusbar.setObjectName(u"statusbar")
         MainWindow.setStatusBar(self.statusbar)
 
-        self.menubar.addAction(self.menuShow.menuAction())
+        self.menubar.addAction(self.menuOption.menuAction())
         self.menubar.addAction(self.menuDev.menuAction())
-        self.menuShow.addAction(self.actionShowHistory)
-        self.menuShow.addAction(self.actionShowFailUrl)
+        self.menuOption.addAction(self.actionLoadClipboardFile)
+        self.menuOption.addAction(self.actionShowFailUrl)
         self.menuDev.addAction(self.actionDownloadMode)
 
         self.retranslateUi(MainWindow)
@@ -135,12 +140,13 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Help Me Download (just for Civit)", None))
-        self.actionShowHistory.setText(QCoreApplication.translate("MainWindow", u"Show History", None))
+        self.actionLoadClipboardFile.setText(QCoreApplication.translate("MainWindow", u"Load Clipboard File", None))
         self.actionShowFailUrl.setText(QCoreApplication.translate("MainWindow", u"Show Failed URLs", None))
         self.actionDownloadMode.setText(QCoreApplication.translate("MainWindow", u"Download Mode", None))
         self.folder_label.setText(QCoreApplication.translate("MainWindow", u"Folder", None))
         self.choose_folder_button.setText(QCoreApplication.translate("MainWindow", u"Folder", None))
-        self.start_clip_push_button.setText(QCoreApplication.translate("MainWindow", u"Start Clip", None))
+        self.clip_push_button.setText(QCoreApplication.translate("MainWindow", u"Clip", None))
+        self.go_push_button.setText(QCoreApplication.translate("MainWindow", u"Go", None))
 #if QT_CONFIG(tooltip)
         self.civitai_check_box.setToolTip(QCoreApplication.translate("MainWindow", u"Analyzing the image links for civitai", None))
 #endif // QT_CONFIG(tooltip)
@@ -150,11 +156,10 @@ class Ui_MainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.categorize_check_box.setText(QCoreApplication.translate("MainWindow", u"Categorize", None))
 #if QT_CONFIG(tooltip)
-        self.stayon_check_box.setToolTip(QCoreApplication.translate("MainWindow", u"Keep the window always on top", None))
+        self.clear_check_box.setToolTip(QCoreApplication.translate("MainWindow", u"\"Clip\" executes, clear previously recorded URLs", None))
 #endif // QT_CONFIG(tooltip)
-        self.stayon_check_box.setText(QCoreApplication.translate("MainWindow", u"StayOn", None))
-        self.label.setText(QCoreApplication.translate("MainWindow", u"Download task message", None))
-        self.menuShow.setTitle(QCoreApplication.translate("MainWindow", u"Show", None))
+        self.clear_check_box.setText(QCoreApplication.translate("MainWindow", u"Clear", None))
+        self.menuOption.setTitle(QCoreApplication.translate("MainWindow", u"Option", None))
         self.menuDev.setTitle(QCoreApplication.translate("MainWindow", u"Dev", None))
     # retranslateUi
 
