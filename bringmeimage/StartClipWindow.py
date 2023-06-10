@@ -12,9 +12,9 @@ class StartClipWindow(QDialog):
     """
     Start_clip_finished_signal = Signal(tuple)
 
-    def __init__(self, for_civitai=True, parent=None):
+    def __init__(self, for_civitai=True, legal_url_count=0, parent=None):
         super().__init__(parent)
-        self.for_for_civitai = for_civitai
+        self.for_civitai = for_civitai
         self.initUI()
         # Dialog always stay on
         self.setWindowFlag(Qt.WindowStaysOnTopHint)
@@ -24,8 +24,13 @@ class StartClipWindow(QDialog):
 
         self.clipboard_text_list = []
         self.legal_url_list = []
-        self.legal_url_count = 0
+        self.legal_url_count = legal_url_count
         self.started_clip = False
+
+        # r'/(\d+)\?(?:(?=[^?]*modelVersionId=(\d+)))?(?:(?=[^?]*modelId=(\d+)))?(?:(?=[^?]*postId=(\d+)))?')
+        self.for_civitai_pattern = re.compile(
+            r"https://civitai.com/images/(\d+)\?.*&modelVersionId=(\d+)&modelId=(\d+)&postId=(\d+)")
+        self.normal_pattern = re.compile(r".+\.(png|jpeg|jpg)$")
 
         self.clipboard = QApplication.clipboard()
         self.timer_for_update_clipboard = QTimer()
@@ -37,7 +42,10 @@ class StartClipWindow(QDialog):
         self.finished_button.clicked.connect(self.click_finished_button)
 
     def initUI(self):
-        self.setWindowTitle('Clip')
+        if self.for_civitai:
+            self.setWindowTitle('Clip for Civital')
+        else:
+            self.setWindowTitle('Clip')
         self.setGeometry(100, 100, 200, 150)
 
         self.v_layout = QVBoxLayout(self)
@@ -48,7 +56,7 @@ class StartClipWindow(QDialog):
 
         self.count_label = QLabel('Clip: 0')
         font = QFont()
-        font.setPointSize(16)
+        font.setPointSize(18)
         self.count_label.setFont(font)
         self.count_label.setAlignment(Qt.AlignCenter)
         self.count_label.setStyleSheet("color: green;")
@@ -129,20 +137,15 @@ class StartClipWindow(QDialog):
         :param text:
         :return:
         """
-        if not self.for_for_civitai:
+        if self.for_civitai:
+            if match := self.for_civitai_pattern.match(text):
+                return text, (match[3], match[2], match[4], match[1])
+        elif match := self.normal_pattern.match(text):
             return text, None
-        # r'/(\d+)\?(?:(?=[^?]*modelVersionId=(\d+)))?(?:(?=[^?]*modelId=(\d+)))?(?:(?=[^?]*postId=(\d+)))?')
-        pattern = r"https://civitai.com/images/(\d+)\?.*&modelVersionId=(\d+)&modelId=(\d+)&postId=(\d+)"
-
-        if match := re.match(pattern, text):
-            return text, (match[3], match[2], match[4], match[1])
-
         # disable self.illegal (used for test)
         # self.illegal_label.setText('illegal url')
         # self.time_for_show_not_legal.singleShot(1000, lambda: self.illegal_label.setText(''))
         print('\033[33m' + f'Cannot parse: {text}' + '\033[0m')
-        return
-
 
 if __name__ == '__main__':
     from PySide6.QtWidgets import QMainWindow

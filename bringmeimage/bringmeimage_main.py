@@ -46,18 +46,13 @@ class Ui_MainWindow(object):
 
         self.folder_line_edit = QLineEdit(self.centralwidget)
         self.folder_line_edit.setObjectName(u"folder_line_edit")
-        self.folder_line_edit.setEnabled(False)
+        self.folder_line_edit.setEnabled(True)
+        self.folder_line_edit.setReadOnly(True)
 
         self.horizontalLayout_1.addWidget(self.folder_line_edit)
 
-        self.choose_folder_button = QPushButton(self.centralwidget)
-        self.choose_folder_button.setObjectName(u"choose_folder_button")
-
-        self.horizontalLayout_1.addWidget(self.choose_folder_button)
-
-        self.horizontalLayout_1.setStretch(0, 2)
-        self.horizontalLayout_1.setStretch(1, 14)
-        self.horizontalLayout_1.setStretch(2, 2)
+        self.horizontalLayout_1.setStretch(0, 1)
+        self.horizontalLayout_1.setStretch(1, 10)
 
         self.verticalLayout.addLayout(self.horizontalLayout_1)
 
@@ -85,12 +80,10 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_2.addWidget(self.categorize_check_box)
 
-        self.clear_check_box = QCheckBox(self.centralwidget)
-        self.clear_check_box.setObjectName(u"clear_check_box")
-        self.clear_check_box.setEnabled(False)
-        self.clear_check_box.setChecked(True)
+        self.clear_push_button = QPushButton(self.centralwidget)
+        self.clear_push_button.setObjectName(u"clear_push_button")
 
-        self.horizontalLayout_2.addWidget(self.clear_check_box)
+        self.horizontalLayout_2.addWidget(self.clear_push_button)
 
         self.horizontalLayout_2.setStretch(0, 4)
         self.horizontalLayout_2.setStretch(1, 4)
@@ -102,6 +95,9 @@ class Ui_MainWindow(object):
 
         self.operation_text_browser = QTextBrowser(self.centralwidget)
         self.operation_text_browser.setObjectName(u"operation_text_browser")
+        font = QFont()
+        font.setPointSize(16)
+        self.operation_text_browser.setFont(font)
 
         self.verticalLayout.addWidget(self.operation_text_browser)
 
@@ -139,12 +135,11 @@ class Ui_MainWindow(object):
     # setupUi
 
     def retranslateUi(self, MainWindow):
-        MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Help Me Download (just for Civit)", None))
+        MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Bring Me Image (support Civitai Gallery)", None))
         self.actionLoadClipboardFile.setText(QCoreApplication.translate("MainWindow", u"Load Clipboard File", None))
         self.actionShowFailUrl.setText(QCoreApplication.translate("MainWindow", u"Show Failed URLs", None))
         self.actionDownloadMode.setText(QCoreApplication.translate("MainWindow", u"Download Mode", None))
         self.folder_label.setText(QCoreApplication.translate("MainWindow", u"Folder", None))
-        self.choose_folder_button.setText(QCoreApplication.translate("MainWindow", u"Folder", None))
         self.clip_push_button.setText(QCoreApplication.translate("MainWindow", u"Clip", None))
         self.go_push_button.setText(QCoreApplication.translate("MainWindow", u"Go", None))
 #if QT_CONFIG(tooltip)
@@ -156,9 +151,9 @@ class Ui_MainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.categorize_check_box.setText(QCoreApplication.translate("MainWindow", u"Categorize", None))
 #if QT_CONFIG(tooltip)
-        self.clear_check_box.setToolTip(QCoreApplication.translate("MainWindow", u"\"Clip\" executes, clear previously recorded URLs", None))
+        self.clear_push_button.setToolTip(QCoreApplication.translate("MainWindow", u"Clear all record list", None))
 #endif // QT_CONFIG(tooltip)
-        self.clear_check_box.setText(QCoreApplication.translate("MainWindow", u"Clear", None))
+        self.clear_push_button.setText(QCoreApplication.translate("MainWindow", u"Clear", None))
         self.menuOption.setTitle(QCoreApplication.translate("MainWindow", u"Option", None))
         self.menuDev.setTitle(QCoreApplication.translate("MainWindow", u"Dev", None))
     # retranslateUi

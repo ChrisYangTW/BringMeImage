@@ -1,3 +1,4 @@
+import contextlib
 from pathlib import Path
 
 import httpx
@@ -6,7 +7,7 @@ from PySide6.QtCore import QObject, Signal, QRunnable, Slot
 
 
 class ParserRunnerSignals(QObject):
-    Parser_connect_to_api_failed_signal = Signal(str)
+    Parser_connect_to_api_failed_signal = Signal(tuple)
     Parser_completed_signal = Signal(tuple)
 
 
@@ -31,30 +32,33 @@ class ParserRunner(QRunnable):
     def get_model_name(self, model_id: str) -> None:
         try:
             r = self.httpx_client.get(self.civitai_model_api_url+model_id)
-            self.signals.Parser_completed_signal.emit((True, {model_id: r.json()["name"]}))
+            self.signals.Parser_completed_signal.emit((True, {model_id: r.json()["name"]}, 'Preprocessing'))
         except Exception as e:
-            self.signals.Parser_connect_to_api_failed_signal.emit(f'model:{model_id}, {e}')
+            self.signals.Parser_connect_to_api_failed_signal.emit((f'model:{model_id}, {e}', 'Preprocessing'))
 
     def get_version_name(self, version_id: str) -> None:
         try:
             r = self.httpx_client.get(self.civitai_version_api_url+version_id)
-            self.signals.Parser_completed_signal.emit((False, {version_id: r.json()["name"]}))
+            self.signals.Parser_completed_signal.emit((False, {version_id: r.json()["name"]}, 'Preprocessing'))
         except Exception as e:
-            self.signals.Parser_connect_to_api_failed_signal.emit(f'version:{version_id}, {e}')
+            self.signals.Parser_connect_to_api_failed_signal.emit((f'version:{version_id}, {e}', 'Preprocessing'))
 
 
 class DownloadRunnerSignals(QObject):
     download_started_signal = Signal(str)
-    download_connect_to_api_failed_signal = Signal(str)
-    download_completed_signal = Signal(str)
+    download_connect_to_api_failed_signal = Signal(tuple)
+    download_completed_signal = Signal(tuple)
+
 
 class DownloadRunner(QRunnable):
-    def __init__(self, httpx_client: httpx.Client, image_info: tuple, save_dir: Path, model_and_version_name: tuple):
+    def __init__(self, httpx_client: httpx.Client, image_info: tuple, save_dir: Path,
+                 categorize:bool, model_and_version_name: tuple):
         super().__init__()
         self.httpx_client = httpx_client
         # (model_id, model_version_id, post_id, image_id)
         self.image_original_url, self.image_params = image_info
         self.save_dir = save_dir
+        self.categorize = categorize
 
         self.signals = DownloadRunnerSignals()
         self.civitai_image_api_url = 'https://civitai.com/api/v1/images?'
@@ -69,34 +73,46 @@ class DownloadRunner(QRunnable):
         self.download_image(url)
 
     def get_save_path(self) -> Path:
-        if not self.image_params:
+        if not self.image_params or not self.categorize:
             return Path(self.save_dir)
 
         model_name = self.model_name_dict[self.image_params[0]]
         version_name = self.version_name_dict[self.image_params[1]]
         return Path(self.save_dir) / Path(model_name) / Path(version_name) / Path('gallery')
 
-
     def get_real_image_url(self) -> str:
         model_id, model_version_id, post_id, image_id = self.image_params
-        try:
+
+        with contextlib.suppress(Exception):
             url = f'{self.civitai_image_api_url}modelId={model_id}&modelVersionId={model_version_id}&postId={post_id}'
             r = self.httpx_client.get(url)
             image_info = r.json()['items']
-            for image in image_info:
-                if image['id'] == int(image_id):
-                    return image['url']
-        except Exception as e:
-            print(e)
-            raise
+            if real_url := next(
+                (
+                    image['url']
+                    for image in image_info
+                    if image['id'] == int(image_id)
+                ),
+                '',
+            ):
+                return real_url
+
+        self.signals.download_connect_to_api_failed_signal.emit(
+            (f'{self.image_original_url}',
+             'There are URLs that cannot be downloaded',
+             'Downloading')
+        )
+        return ''
 
     def download_image(self, url: str):
-        save_path = self.save_dir / Path(url.rsplit('/', 1)[-1])
-        if save_path.exists():
-            # todo: handle exists filename
-            pass
+        if not url:
+            return
 
         self.save_dir.mkdir(parents=True, exist_ok=True)
+        save_path = self.save_dir / Path(url.rsplit('/', 1)[-1])
+        if save_path.exists():
+            new_name = f'{save_path.stem}(repeat){save_path.suffix}'
+            save_path = save_path.with_name(new_name)
 
         try:
             r = self.httpx_client.get(url)
@@ -107,6 +123,8 @@ class DownloadRunner(QRunnable):
                     if date:
                         f.write(date)
 
-            self.signals.download_completed_signal.emit(f'{url} download ok')
-        except Exception as e:
-            raise
+            self.signals.download_completed_signal.emit((f'{self.image_original_url}', 'Download ok', 'Downloading'))
+        except Exception:
+            self.signals.download_connect_to_api_failed_signal.emit(
+                (f'{self.image_original_url}', 'There are URLs that cannot be downloaded', 'Downloading')
+            )
