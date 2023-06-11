@@ -55,8 +55,10 @@ You can use pyinstaller, py2app, py2exe to convert the code into an executable f
       3. Option > Load Clipboard File. Load Clip Records, you can resume the Clip task or click 'GO' to start downloading.
 6. Example Video:
    1. Fetching images from the gallery
+      * https://github.com/ChrisYangTW/BringMeImage/assets/127172524/16c21413-c9fc-493d-8612-d1c481013870
    2. Copying the static link of the image directly
    3. Save and Load 'Clip' Records
+      * https://github.com/ChrisYangTW/BringMeImage/assets/127172524/485d4948-8f31-4bc1-938f-dd6fcfc4d74f
 
 
 ## Test environment
