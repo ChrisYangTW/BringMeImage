@@ -10,9 +10,10 @@ class StartClipWindow(QDialog):
     """
     QDialog window for starting to clip urls
     """
+    Start_clip_close_window_signal = Signal(bool)
     Start_clip_finished_signal = Signal(tuple)
 
-    def __init__(self, for_civitai=True, legal_url_count=0, parent=None):
+    def __init__(self, for_civitai: bool, legal_url_count: int, parent=None):
         super().__init__(parent)
         self.for_civitai = for_civitai
         self.initUI()
@@ -35,8 +36,7 @@ class StartClipWindow(QDialog):
         self.clipboard = QApplication.clipboard()
         self.timer_for_update_clipboard = QTimer()
         self.timer_for_update_clipboard.timeout.connect(self.update_clipboard)
-
-        self.time_for_show_not_legal = QTimer()
+        # self.time_for_show_not_legal = QTimer()
 
         self.start_clip_button.clicked.connect(self.click_start_clip_button)
         self.finished_button.clicked.connect(self.click_finished_button)
@@ -87,22 +87,23 @@ class StartClipWindow(QDialog):
     # Overrides the reject() to allow users to cancel the dialog using the ESC key
     def reject(self, from_finished_button=False) -> None:
         """
-        If self.urls_editor is not empty, ask the user before closing the window
+        If self.legal_url_list is not empty, ask the user before closing the window
         :return:
         """
         if self.started_clip:
             return
 
         if not from_finished_button and self.legal_url_list:
-            QMessageBox.warning(None, 'Warning', 'list had some urls')
-            return
+            reply = QMessageBox.question(self, 'Warning',
+                                         'There are existing records. Are you sure you want to close the window?',
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.No:
+                return
 
+        self.Start_clip_close_window_signal.emit(True)
         self.done(0)
 
     def click_start_clip_button(self) -> None:
-        """
-        :return:
-        """
         if self.started_clip:
             self.started_clip = False
             self.start_clip_button.setText('Start')
@@ -116,6 +117,10 @@ class StartClipWindow(QDialog):
             self.timer_for_update_clipboard.start(1000)
 
     def click_finished_button(self):
+        if not self.legal_url_list:
+            self.reject(from_finished_button=True)
+            return
+
         self.Start_clip_finished_signal.emit((self.legal_url_count, self.legal_url_list))
         self.reject(from_finished_button=True)
 
@@ -168,7 +173,7 @@ if __name__ == '__main__':
             self.v_layout.addWidget(self.button)
 
         def show_window(self):
-            start_clip_window = StartClipWindow(parent=self)
+            start_clip_window = StartClipWindow(for_civitai=True, legal_url_count=0, parent=self)
             start_clip_window.Start_clip_finished_signal.connect(self.handle_start_clip_finished_signal)
             start_clip_window.setWindowModality(Qt.ApplicationModal)
             start_clip_window.show()

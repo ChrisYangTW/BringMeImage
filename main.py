@@ -7,8 +7,8 @@ import httpx
 
 from PySide6.QtCore import Qt, QThreadPool
 from PySide6.QtGui import QTextCharFormat
-from PySide6.QtWidgets import QApplication, QMainWindow, QStyleFactory, QFileDialog, QMessageBox, QHBoxLayout, QLabel, \
-    QProgressBar
+from PySide6.QtWidgets import (QApplication, QMainWindow, QStyleFactory, QFileDialog, QMessageBox, QHBoxLayout,
+                               QLabel, QProgressBar)
 
 from bringmeimage.bringmeimage_main import Ui_MainWindow
 from bringmeimage.StartClipWindow import StartClipWindow
@@ -21,16 +21,15 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        self.ui.statusbar.showMessage('V0.1.0')
 
         self.pool = QThreadPool.globalInstance()
-        self.clipboard = QApplication.clipboard()
         self.httpx_client = httpx.Client()
 
         self.started_clip = False
         self.save_dir = None
         self.legal_url_info_list = []
         self.download_failed_original_url_list = []
-        self.url_count = 0
         self.model_count = 0
         self.version_count = 0
         self.model_name_dict = {}
@@ -70,7 +69,6 @@ class MainWindow(QMainWindow):
         self.legal_url_info_list = record[2]
         self.ui.civitai_check_box.setEnabled(False)
         self.ui.categorize_check_box.setEnabled(False)
-        self.url_count = len(self.legal_url_info_list)
         self.ui.operation_text_browser.append(
             f'{datetime.now().strftime("%H:%M:%S")} '
             f'[ {len(self.legal_url_info_list)} URLs ] | Click "GO" to start downloading'
@@ -123,8 +121,11 @@ class MainWindow(QMainWindow):
         start_clip_window = StartClipWindow(for_civitai=self.ui.civitai_check_box.isChecked(),
                                             legal_url_count=legal_url_count, parent=self)
         start_clip_window.Start_clip_finished_signal.connect(self.handle_start_clip_finished_signal)
+        start_clip_window.Start_clip_close_window_signal.connect(self.handle_start_clip_close_window_signal)
         start_clip_window.setWindowModality(Qt.ApplicationModal)
         start_clip_window.show()
+
+        self.able_option_action(enable=False)
 
     def handle_start_clip_finished_signal(self, finished_message: tuple):
         self.ui.civitai_check_box.setEnabled(False)
@@ -133,12 +134,15 @@ class MainWindow(QMainWindow):
         legal_url_count, legal_url_list = finished_message
         assert legal_url_count == len(legal_url_list)
         self.legal_url_info_list.extend(legal_url_list)
-        self.url_count = len(self.legal_url_info_list)
         self.ui.operation_text_browser.append(
             f'{datetime.now().strftime("%H:%M:%S")} '
             f'[ {len(self.legal_url_info_list)} URLs ] | Click "GO" to start downloading'
             f' or "Clip" to continue adding (clear checkbox cannot be selected)'
         )
+
+    def handle_start_clip_close_window_signal(self, close_window_signal: bool):
+        if close_window_signal:
+            self.able_option_action()
 
     def click_go_push_button(self):
         if not self.save_dir:
@@ -154,6 +158,7 @@ class MainWindow(QMainWindow):
 
         self.ui.clip_push_button.setEnabled(False)
         self.ui.go_push_button.setEnabled(False)
+        self.ui.actionLoadClipboardFile.setEnabled(False)
         self.clear_progress_bar()
 
         if self.ui.civitai_check_box.isChecked():
@@ -206,6 +211,7 @@ class MainWindow(QMainWindow):
         )
         self.ui.go_push_button.setEnabled(True)
         self.ui.clip_push_button.setEnabled(True)
+        self.ui.actionLoadClipboardFile.setEnabled(True)
 
     def handle_parser_completed_signal(self, completed_message: tuple):
         is_model, name_info, task_name = completed_message
@@ -235,14 +241,10 @@ class MainWindow(QMainWindow):
             downloader = DownloadRunner(httpx_client=self.httpx_client, image_info=image_info, save_dir=self.save_dir,
                                         categorize=self.ui.categorize_check_box.isChecked(),
                                         model_and_version_name=model_and_version_name)
-            downloader.signals.download_started_signal.connect(self.handle_download_started_signal)
             downloader.signals.download_connect_to_api_failed_signal.connect(
                 self.handle_download_connect_to_api_failed_signal)
             downloader.signals.download_completed_signal.connect(self.handle_download_completed_signal)
             self.pool.start(downloader)
-
-    def handle_download_started_signal(self, started_message: str):
-        self.ui.result_text_browser.append(started_message)
 
     def handle_download_connect_to_api_failed_signal(self, failed_message: tuple):
         original_url, message, task_name = failed_message
@@ -308,14 +310,23 @@ class MainWindow(QMainWindow):
 
     def able_buttons_and_checkbox(self, enable=True) -> None:
         """
-        Enable/Disable clip, go buttons and civitai, categorize checkbox
-        :param enable: set False to disable clip and go buttons
+        Enable/Disable clip, go buttons and civitai, categorize checkboxs and loadClipboardFile action
+        :param enable: set False to disable them
         :return:
         """
         self.ui.clip_push_button.setEnabled(enable)
         self.ui.go_push_button.setEnabled(enable)
         self.ui.civitai_check_box.setEnabled(enable)
         self.ui.categorize_check_box.setEnabled(enable)
+
+    def able_option_action(self, enable=True) -> None:
+        """
+        Enable/Disable LoadClipboardFile and ShowFailUrl actions
+        :param enable: set False to disable them
+        :return:
+        """
+        self.ui.actionLoadClipboardFile.setEnabled(enable)
+        self.ui.actionShowFailUrl.setEnabled(enable)
 
     def operation_browser_insert_html(self, html_string: str, newline_first=True):
         if newline_first:
@@ -362,6 +373,9 @@ class MainWindow(QMainWindow):
             event.accept()
         event.accept()
 
+    def clear_threadpool(self):
+        self.pool.clear()
+
 
 if __name__ == '__main__':
     app = QApplication([])
@@ -369,4 +383,5 @@ if __name__ == '__main__':
     if sys.platform == 'darwin' and 'Fusion' in QStyleFactory.keys():
         app.setStyle(QStyleFactory.create('Fusion'))
     window.show()
+    app.aboutToQuit.connect(window.clear_threadpool)
     sys.exit(app.exec())

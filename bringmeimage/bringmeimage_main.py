@@ -8,14 +8,8 @@
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
 
-from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
-    QMetaObject, QObject, QPoint, QRect,
-    QSize, QTime, QUrl, Qt)
-from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
-    QCursor, QFont, QFontDatabase, QGradient,
-    QIcon, QImage, QKeySequence, QLinearGradient,
-    QPainter, QPalette, QPixmap, QRadialGradient,
-    QTransform)
+from PySide6.QtCore import (QCoreApplication, QMetaObject, QObject, QRect, QSize, QTime, Qt)
+from PySide6.QtGui import (QAction, QFont)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QHBoxLayout, QLabel,
     QLineEdit, QMainWindow, QMenu, QMenuBar,
     QPushButton, QSizePolicy, QStatusBar, QTextBrowser,
@@ -25,7 +19,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(800, 600)
+        MainWindow.resize(800, 400)
         self.actionLoadClipboardFile = QAction(MainWindow)
         self.actionLoadClipboardFile.setObjectName(u"actionLoadClipboardFile")
         self.actionShowFailUrl = QAction(MainWindow)
@@ -101,15 +95,9 @@ class Ui_MainWindow(object):
 
         self.verticalLayout.addWidget(self.operation_text_browser)
 
-        self.result_text_browser = QTextBrowser(self.centralwidget)
-        self.result_text_browser.setObjectName(u"result_text_browser")
-
-        self.verticalLayout.addWidget(self.result_text_browser)
-
         self.verticalLayout.setStretch(0, 1)
         self.verticalLayout.setStretch(1, 1)
-        self.verticalLayout.setStretch(2, 2)
-        self.verticalLayout.setStretch(3, 2)
+        self.verticalLayout.setStretch(2, 4)
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
@@ -135,12 +123,21 @@ class Ui_MainWindow(object):
     # setupUi
 
     def retranslateUi(self, MainWindow):
-        MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Bring Me Image (support Civitai Gallery)", None))
+        MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Bring Me Image", None))
         self.actionLoadClipboardFile.setText(QCoreApplication.translate("MainWindow", u"Load Clipboard File", None))
         self.actionShowFailUrl.setText(QCoreApplication.translate("MainWindow", u"Show Failed URLs", None))
         self.actionDownloadMode.setText(QCoreApplication.translate("MainWindow", u"Download Mode", None))
         self.folder_label.setText(QCoreApplication.translate("MainWindow", u"Folder", None))
+#if QT_CONFIG(tooltip)
+        self.folder_line_edit.setToolTip("")
+#endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(tooltip)
+        self.clip_push_button.setToolTip("")
+#endif // QT_CONFIG(tooltip)
         self.clip_push_button.setText(QCoreApplication.translate("MainWindow", u"Clip", None))
+#if QT_CONFIG(tooltip)
+        self.go_push_button.setToolTip("")
+#endif // QT_CONFIG(tooltip)
         self.go_push_button.setText(QCoreApplication.translate("MainWindow", u"Go", None))
 #if QT_CONFIG(tooltip)
         self.civitai_check_box.setToolTip(QCoreApplication.translate("MainWindow", u"Analyzing the image links for civitai", None))
@@ -156,5 +153,8 @@ class Ui_MainWindow(object):
         self.clear_push_button.setText(QCoreApplication.translate("MainWindow", u"Clear", None))
         self.menuOption.setTitle(QCoreApplication.translate("MainWindow", u"Option", None))
         self.menuDev.setTitle(QCoreApplication.translate("MainWindow", u"Dev", None))
+#if QT_CONFIG(statustip)
+        self.statusbar.setStatusTip("")
+#endif // QT_CONFIG(statustip)
     # retranslateUi
 

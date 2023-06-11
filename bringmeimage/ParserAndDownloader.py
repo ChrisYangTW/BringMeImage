@@ -45,7 +45,6 @@ class ParserRunner(QRunnable):
 
 
 class DownloadRunnerSignals(QObject):
-    download_started_signal = Signal(str)
     download_connect_to_api_failed_signal = Signal(tuple)
     download_completed_signal = Signal(tuple)
 
