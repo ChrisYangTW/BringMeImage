@@ -38,6 +38,9 @@
         <property name="readOnly">
          <bool>true</bool>
         </property>
+        <property name="placeholderText">
+         <string>Click to select the path for saving</string>
+        </property>
        </widget>
       </item>
      </layout>
@@ -129,14 +132,7 @@
     <addaction name="actionLoadClipboardFile"/>
     <addaction name="actionShowFailUrl"/>
    </widget>
-   <widget class="QMenu" name="menuDev">
-    <property name="title">
-     <string>Dev</string>
-    </property>
-    <addaction name="actionDownloadMode"/>
-   </widget>
    <addaction name="menuOption"/>
-   <addaction name="menuDev"/>
   </widget>
   <widget class="QStatusBar" name="statusbar">
    <property name="statusTip">

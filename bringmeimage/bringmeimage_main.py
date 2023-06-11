@@ -8,8 +8,14 @@
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
 
-from PySide6.QtCore import (QCoreApplication, QMetaObject, QObject, QRect, QSize, QTime, Qt)
-from PySide6.QtGui import (QAction, QFont)
+from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
+    QMetaObject, QObject, QPoint, QRect,
+    QSize, QTime, QUrl, Qt)
+from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
+    QCursor, QFont, QFontDatabase, QGradient,
+    QIcon, QImage, QKeySequence, QLinearGradient,
+    QPainter, QPalette, QPixmap, QRadialGradient,
+    QTransform)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QHBoxLayout, QLabel,
     QLineEdit, QMainWindow, QMenu, QMenuBar,
     QPushButton, QSizePolicy, QStatusBar, QTextBrowser,
@@ -104,18 +110,14 @@ class Ui_MainWindow(object):
         self.menubar.setGeometry(QRect(0, 0, 800, 37))
         self.menuOption = QMenu(self.menubar)
         self.menuOption.setObjectName(u"menuOption")
-        self.menuDev = QMenu(self.menubar)
-        self.menuDev.setObjectName(u"menuDev")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QStatusBar(MainWindow)
         self.statusbar.setObjectName(u"statusbar")
         MainWindow.setStatusBar(self.statusbar)
 
         self.menubar.addAction(self.menuOption.menuAction())
-        self.menubar.addAction(self.menuDev.menuAction())
         self.menuOption.addAction(self.actionLoadClipboardFile)
         self.menuOption.addAction(self.actionShowFailUrl)
-        self.menuDev.addAction(self.actionDownloadMode)
 
         self.retranslateUi(MainWindow)
 
@@ -131,6 +133,7 @@ class Ui_MainWindow(object):
 #if QT_CONFIG(tooltip)
         self.folder_line_edit.setToolTip("")
 #endif // QT_CONFIG(tooltip)
+        self.folder_line_edit.setPlaceholderText(QCoreApplication.translate("MainWindow", u"Click to select the path for saving", None))
 #if QT_CONFIG(tooltip)
         self.clip_push_button.setToolTip("")
 #endif // QT_CONFIG(tooltip)
@@ -152,7 +155,6 @@ class Ui_MainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.clear_push_button.setText(QCoreApplication.translate("MainWindow", u"Clear", None))
         self.menuOption.setTitle(QCoreApplication.translate("MainWindow", u"Option", None))
-        self.menuDev.setTitle(QCoreApplication.translate("MainWindow", u"Dev", None))
 #if QT_CONFIG(statustip)
         self.statusbar.setStatusTip("")
 #endif // QT_CONFIG(statustip)

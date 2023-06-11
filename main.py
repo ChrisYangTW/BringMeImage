@@ -21,7 +21,6 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
-        self.ui.statusbar.showMessage('V0.1.0')
 
         self.pool = QThreadPool.globalInstance()
         self.httpx_client = httpx.Client()
