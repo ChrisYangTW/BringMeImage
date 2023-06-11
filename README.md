@@ -72,8 +72,9 @@ Macbook Pro16 M1 (OS Version 13.4 (22F66))
 The images and video content used in the instructions are sourced from civitai.com. If there are any concerns or issues, please let us know. Thank you.
 
 ## Supplementary note
-he images are shared generously by many users. Please be mindful of the relevant copyright regulations when using them.
+The images are shared generously by many users. Please be mindful of the relevant copyright regulations when using them.
 
 ## Afterword
  Initially, the intention was to directly download all the images from the galleries in the models. However, this approach turned out to be cumbersome when it came to selecting specific images. Therefore, based on personal browsing habits (Click on the image to load the static file of the image, and then right-click to download it.), this simple project was designed to facilitate downloading and management.  
+ 
  I believe a better approach would be to use programming to learn an individual's preferred image style and then automatically recognize and fetch images that match those characteristic values through web crawling.
