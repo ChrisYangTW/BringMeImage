@@ -11,10 +11,11 @@ class StartClipWindow(QDialog):
     QDialog window for starting to clip urls
     """
     Start_clip_close_window_signal = Signal(bool)
-    Start_clip_finished_signal = Signal(tuple)
+    Start_clip_finished_signal = Signal(list)
 
-    def __init__(self, for_civitai: bool, legal_url_count: int, parent=None):
+    def __init__(self, for_civitai: bool, legal_url_list: list, parent=None):
         super().__init__(parent)
+        self.legal_url_list = legal_url_list
         self.for_civitai = for_civitai
         self.initUI()
         # Dialog always stay on
@@ -24,8 +25,6 @@ class StartClipWindow(QDialog):
         self.show()
 
         self.clipboard_text_list = []
-        self.legal_url_list = []
-        self.legal_url_count = legal_url_count
         self.started_clip = False
 
         # r'/(\d+)\?(?:(?=[^?]*modelVersionId=(\d+)))?(?:(?=[^?]*modelId=(\d+)))?(?:(?=[^?]*postId=(\d+)))?')
@@ -54,7 +53,7 @@ class StartClipWindow(QDialog):
         self.start_clip_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.v_layout.addWidget(self.start_clip_button)
 
-        self.count_label = QLabel('Clip: 0')
+        self.count_label = QLabel(f'Clip: {len(self.legal_url_list)}')
         font = QFont()
         font.setPointSize(18)
         self.count_label.setFont(font)
@@ -121,7 +120,7 @@ class StartClipWindow(QDialog):
             self.reject(from_finished_button=True)
             return
 
-        self.Start_clip_finished_signal.emit((self.legal_url_count, self.legal_url_list))
+        self.Start_clip_finished_signal.emit(self.legal_url_list)
         self.reject(from_finished_button=True)
 
     def update_clipboard(self) -> None:
@@ -131,10 +130,9 @@ class StartClipWindow(QDialog):
             text = mime_data.text()
             if text not in self.clipboard_text_list:
                 self.clipboard_text_list.append(text)
-                if url := self.initial_parse(text):
-                    self.legal_url_list.append(url)
-                    self.legal_url_count += 1
-                    self.count_label.setText(f'Clip: {self.legal_url_count}')
+                if url_info := self.initial_parse(text):
+                    self.legal_url_list.append(url_info)
+                    self.count_label.setText(f'Clip: {len(self.legal_url_list)}')
 
     def initial_parse(self, text: str) -> tuple|None:
         """
@@ -144,13 +142,21 @@ class StartClipWindow(QDialog):
         """
         if self.for_civitai:
             if match := self.for_civitai_pattern.match(text):
-                return text, (match[3], match[2], match[4], match[1])
+                url_info = text, (match[3], match[2], match[4], match[1])
+                if url_info in self.legal_url_list:
+                    print('\033[33m' + f'URL existed: {text}' + '\033[0m')
+                    return
+                return url_info
         elif match := self.normal_pattern.match(text):
-            return text, None
+            url_info = text, None
+            if url_info in self.legal_url_list:
+                print('\033[33m' + f'URL existed: {text}' + '\033[0m')
+                return
+            return url_info
         # disable self.illegal (used for test)
         # self.illegal_label.setText('illegal url')
         # self.time_for_show_not_legal.singleShot(1000, lambda: self.illegal_label.setText(''))
-        print('\033[33m' + f'Cannot parse: {text}' + '\033[0m')
+        print('\033[33m' + f'URL cannot parse: {text}' + '\033[0m')
 
 if __name__ == '__main__':
     from PySide6.QtWidgets import QMainWindow
@@ -173,7 +179,7 @@ if __name__ == '__main__':
             self.v_layout.addWidget(self.button)
 
         def show_window(self):
-            start_clip_window = StartClipWindow(for_civitai=True, legal_url_count=0, parent=self)
+            start_clip_window = StartClipWindow(for_civitai=True, legal_url_list=[], parent=self)
             start_clip_window.Start_clip_finished_signal.connect(self.handle_start_clip_finished_signal)
             start_clip_window.setWindowModality(Qt.ApplicationModal)
             start_clip_window.show()

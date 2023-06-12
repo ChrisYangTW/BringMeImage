@@ -56,13 +56,19 @@ class MainWindow(QMainWindow):
                 with open(file, 'rb') as f:
                     record = pickle.load(f)
             except pickle.UnpicklingError:
-                self.ui.operation_text_browser.append(
+                self.operation_browser_insert_html(
+                    '<span style="color: pink;">'
                     f'{datetime.now().strftime("%H:%M:%S")} '
                     f'The file appears to have been modified and is no longer readable'
+                    '</span>'
                 )
             self.load_record(record)
 
     def load_record(self, record: tuple):
+        self.ui.operation_text_browser.append(
+            f'{datetime.now().strftime("%H:%M:%S")} '
+            f'[ {len(self.legal_url_info_list)} URLs ] | Loading clipboard from file'
+        )
         self.ui.civitai_check_box.setChecked(record[0])
         self.ui.categorize_check_box.setChecked(record[1])
         self.legal_url_info_list = record[2]
@@ -71,7 +77,7 @@ class MainWindow(QMainWindow):
         self.ui.operation_text_browser.append(
             f'{datetime.now().strftime("%H:%M:%S")} '
             f'[ {len(self.legal_url_info_list)} URLs ] | Click "GO" to start downloading'
-            f' or "Clip" to continue adding (clear checkbox cannot be selected)'
+            f' or "Clip" to continue adding.'
         )
 
     def trigger_action_show_fail_url(self):
@@ -118,7 +124,7 @@ class MainWindow(QMainWindow):
     def click_clip_push_button(self) -> None:
         legal_url_count = len(self.legal_url_info_list)
         start_clip_window = StartClipWindow(for_civitai=self.ui.civitai_check_box.isChecked(),
-                                            legal_url_count=legal_url_count, parent=self)
+                                            legal_url_list=self.legal_url_info_list, parent=self)
         start_clip_window.Start_clip_finished_signal.connect(self.handle_start_clip_finished_signal)
         start_clip_window.Start_clip_close_window_signal.connect(self.handle_start_clip_close_window_signal)
         start_clip_window.setWindowModality(Qt.ApplicationModal)
@@ -126,17 +132,15 @@ class MainWindow(QMainWindow):
 
         self.able_option_action(enable=False)
 
-    def handle_start_clip_finished_signal(self, finished_message: tuple):
+    def handle_start_clip_finished_signal(self, finished_message: list):
         self.ui.civitai_check_box.setEnabled(False)
         self.ui.categorize_check_box.setEnabled(False)
 
-        legal_url_count, legal_url_list = finished_message
-        assert legal_url_count == len(legal_url_list)
-        self.legal_url_info_list.extend(legal_url_list)
+        self.legal_url_info_list = finished_message
         self.ui.operation_text_browser.append(
             f'{datetime.now().strftime("%H:%M:%S")} '
             f'[ {len(self.legal_url_info_list)} URLs ] | Click "GO" to start downloading'
-            f' or "Clip" to continue adding (clear checkbox cannot be selected)'
+            f' or "Clip" to continue adding.'
         )
 
     def handle_start_clip_close_window_signal(self, close_window_signal: bool):
@@ -203,10 +207,15 @@ class MainWindow(QMainWindow):
         message, task_name = failed_message
         self.pool.clear()
         self.ui.operation_text_browser.append(message)
-        self.ui.operation_text_browser.append(
+        self.operation_browser_insert_html(
+            '<span style="color: pink;">'
             f'{datetime.now().strftime("%H:%M:%S")} '
             f'[ {len(self.legal_url_info_list)} URLs ] | '
-            f'Unable to retrieve the full name. It may be due to a connection issue. Click "Go" again.'
+            f'{message} '
+            f'Unable to retrieve the full name. It may be due to a connection issue.<br>'
+            f'Click "Go" to retry or close the main program and save the list. '
+            f'You can execute it again once the server responds properly.'
+            '</span>'
         )
         self.ui.go_push_button.setEnabled(True)
         self.ui.clip_push_button.setEnabled(True)
