@@ -8,15 +8,15 @@ from PySide6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QPushButton, 
 
 class StartClipWindow(QDialog):
     """
-    QDialog window for starting to clip urls
+    QDialog window for starting to clip and parse urls
     """
-    Start_clip_close_window_signal = Signal(bool)
+    Start_clip_closed_window_signal = Signal()
     Start_clip_finished_signal = Signal(list)
 
     def __init__(self, for_civitai: bool, legal_url_list: list, parent=None):
         super().__init__(parent)
-        self.legal_url_list = legal_url_list
         self.for_civitai = for_civitai
+        self.legal_url_list = legal_url_list
         self.initUI()
         # Dialog always stay on
         self.setWindowFlag(Qt.WindowStaysOnTopHint)
@@ -35,10 +35,8 @@ class StartClipWindow(QDialog):
         self.clipboard = QApplication.clipboard()
         self.timer_for_update_clipboard = QTimer()
         self.timer_for_update_clipboard.timeout.connect(self.update_clipboard)
-        # self.time_for_show_not_legal = QTimer()
-
-        self.start_clip_button.clicked.connect(self.click_start_clip_button)
-        self.finished_button.clicked.connect(self.click_finished_button)
+        self.start_clip_button.clicked.connect(self.start_clip)
+        self.finish_clip_button.clicked.connect(self.finish_clip)
 
     def initUI(self):
         if self.for_civitai:
@@ -62,15 +60,9 @@ class StartClipWindow(QDialog):
         self.count_label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         self.v_layout.addWidget(self.count_label)
 
-        # disable self.illegal (used for test)
-        # self.illegal_label = QLabel()
-        # self.illegal_label.setAlignment(Qt.AlignCenter)
-        # self.illegal_label.setStyleSheet("color: pink;")
-        # self.v_layout.addWidget(self.illegal_label)
-
-        self.finished_button = QPushButton('Finish')
-        self.finished_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
-        self.v_layout.addWidget(self.finished_button)
+        self.finish_clip_button = QPushButton('Finish')
+        self.finish_clip_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.v_layout.addWidget(self.finish_clip_button)
 
         self.v_layout.setStretch(0, 2)
         self.v_layout.setStretch(1, 2)
@@ -84,79 +76,80 @@ class StartClipWindow(QDialog):
             self.move(center_point.x() - self.width() / 2, center_point.y() - self.height() / 2)
 
     # Overrides the reject() to allow users to cancel the dialog using the ESC key
-    def reject(self, from_finished_button=False) -> None:
+    def reject(self, called_by_finished_button=False) -> None:
         """
         If self.legal_url_list is not empty, ask the user before closing the window
+        :param called_by_finished_button: set True for ignoring whether self.legal_url_list is empty
         :return:
         """
         if self.started_clip:
             return
 
-        if not from_finished_button and self.legal_url_list:
+        if not called_by_finished_button and self.legal_url_list:
             reply = QMessageBox.question(self, 'Warning',
                                          'There are existing records. Are you sure you want to close the window?',
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.No:
                 return
 
-        self.Start_clip_close_window_signal.emit(True)
+        self.Start_clip_closed_window_signal.emit()
         self.done(0)
 
-    def click_start_clip_button(self) -> None:
+    def start_clip(self) -> None:
         if self.started_clip:
             self.started_clip = False
             self.start_clip_button.setText('Start')
             self.timer_for_update_clipboard.stop()
-            self.finished_button.setEnabled(True)
+            self.finish_clip_button.setEnabled(True)
         else:
             self.clipboard.clear()
             self.started_clip = True
             self.start_clip_button.setText('Stop')
-            self.finished_button.setEnabled(False)
+            self.finish_clip_button.setEnabled(False)
             self.timer_for_update_clipboard.start(1000)
 
-    def click_finished_button(self):
+    def finish_clip(self):
         if not self.legal_url_list:
-            self.reject(from_finished_button=True)
+            self.reject(called_by_finished_button=True)
             return
 
         self.Start_clip_finished_signal.emit(self.legal_url_list)
-        self.reject(from_finished_button=True)
+        self.reject(called_by_finished_button=True)
 
     def update_clipboard(self) -> None:
         mime_data = self.clipboard.mimeData()
 
         if mime_data.hasText():
-            text = mime_data.text()
-            if text not in self.clipboard_text_list:
-                self.clipboard_text_list.append(text)
-                if url_info := self.initial_parse(text):
+            url_text = mime_data.text()
+            if url_text not in self.clipboard_text_list:
+                self.clipboard_text_list.append(url_text)
+                if url_info := self.initial_parse(url_text):
                     self.legal_url_list.append(url_info)
                     self.count_label.setText(f'Clip: {len(self.legal_url_list)}')
 
-    def initial_parse(self, text: str) -> tuple|None:
+    def initial_parse(self, url_text: str) -> tuple|None:
         """
-        if text is legal, return (model_id, model_version_id, post_id, image_id)
-        :param text:
+        if url_text is legal, return (url_text, (model_id, model_version_id, post_id, image_id))
+        :param url_text:
         :return:
         """
         if self.for_civitai:
-            if match := self.for_civitai_pattern.match(text):
-                url_info = text, (match[3], match[2], match[4], match[1])
+            if match := self.for_civitai_pattern.match(url_text):
+                url_info = url_text, (match[3], match[2], match[4], match[1])
                 if url_info in self.legal_url_list:
-                    print('\033[33m' + f'URL existed: {text}' + '\033[0m')
+                    print('\033[33m' + f'URL existed: {url_text}' + '\033[0m')
                     return
                 return url_info
-        elif match := self.normal_pattern.match(text):
-            url_info = text, None
+        elif match := self.normal_pattern.match(url_text):
+            url_info = url_text, None
             if url_info in self.legal_url_list:
-                print('\033[33m' + f'URL existed: {text}' + '\033[0m')
+                print('\033[33m' + f'URL existed: {url_text}' + '\033[0m')
                 return
             return url_info
         # disable self.illegal (used for test)
         # self.illegal_label.setText('illegal url')
         # self.time_for_show_not_legal.singleShot(1000, lambda: self.illegal_label.setText(''))
-        print('\033[33m' + f'URL cannot parse: {text}' + '\033[0m')
+        print('\033[33m' + f'URL cannot parse: {url_text}' + '\033[0m')
 
 if __name__ == '__main__':
     from PySide6.QtWidgets import QMainWindow

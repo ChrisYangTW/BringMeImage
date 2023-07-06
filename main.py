@@ -6,7 +6,7 @@ from pathlib import Path
 import httpx
 
 from PySide6.QtCore import Qt, QThreadPool
-from PySide6.QtGui import QTextCharFormat
+from PySide6.QtGui import QTextCharFormat, QMouseEvent
 from PySide6.QtWidgets import (QApplication, QMainWindow, QStyleFactory, QFileDialog, QMessageBox, QHBoxLayout,
                                QLabel, QProgressBar)
 
@@ -34,23 +34,21 @@ class MainWindow(QMainWindow):
         self.model_name_dict = {}
         self.version_name_dict = {}
 
-        self.progress_bar_list = []
+        self.progress_bar_task_name_list = []
         self.progress_bar_info = {}
 
-        self.ui.actionLoadClipboardFile.triggered.connect(self.trigger_load_clipboard_file)
-        self.ui.actionShowFailUrl.triggered.connect(self.trigger_action_show_fail_url)
-        self.ui.folder_line_edit.mousePressEvent = self.click_folder_line_edit_mouse_press
+        self.ui.actionLoadClipboardFile.triggered.connect(self.load_clipboard_file)
+        self.ui.actionShowFailUrl.triggered.connect(self.show_failed_url)
+        self.ui.folder_line_edit.mousePressEvent = self.select_storage_folder
         self.ui.civitai_check_box.clicked.connect(self.click_civitai_check_box)
         self.ui.categorize_check_box.clicked.connect(self.click_categorize_check_box)
         self.ui.clear_push_button.clicked.connect(self.click_clear_push_button)
-        self.ui.clip_push_button.clicked.connect(self.click_clip_push_button)
+        self.ui.clip_push_button.clicked.connect(self.start_clip_process)
         self.ui.go_push_button.clicked.connect(self.click_go_push_button)
 
-    def trigger_load_clipboard_file(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.ReadOnly
-        filters = "Bring Me Image Files (*.bringmeimage)"
-        file, _ = QFileDialog.getOpenFileName(self, "Select File", "", filters, options=options)
+    def load_clipboard_file(self):
+        filters = 'Bring Me Image Files (*.bringmeimage)'
+        file, _ = QFileDialog.getOpenFileName(self, 'Select File', '', filters, options=QFileDialog.ReadOnly)
         if file:
             try:
                 with open(file, 'rb') as f:
@@ -65,34 +63,38 @@ class MainWindow(QMainWindow):
             self.load_record(record)
 
     def load_record(self, record: tuple):
-        self.ui.operation_text_browser.append(
+        self.operation_browser_insert_html(
+            '<span style="color: cyan;">'
             f'{datetime.now().strftime("%H:%M:%S")} '
             f'[ {len(self.legal_url_info_list)} URLs ] | Loading clipboard from file'
+            '</span>'
         )
-        self.ui.civitai_check_box.setChecked(record[0])
-        self.ui.categorize_check_box.setChecked(record[1])
-        self.legal_url_info_list = record[2]
+        self.save_dir = record[0]
+        self.ui.folder_line_edit.setText(str(record[0]))
+        self.ui.civitai_check_box.setChecked(record[1])
         self.ui.civitai_check_box.setEnabled(False)
+        self.ui.categorize_check_box.setChecked(record[2])
         self.ui.categorize_check_box.setEnabled(False)
+        self.legal_url_info_list = record[3]
         self.ui.operation_text_browser.append(
             f'{datetime.now().strftime("%H:%M:%S")} '
             f'[ {len(self.legal_url_info_list)} URLs ] | Click "GO" to start downloading'
             f' or "Clip" to continue adding.'
         )
+        self.ui.actionLoadClipboardFile.setEnabled(False)
+        self.ui.actionShowFailUrl.setEnabled(False)
 
-    def trigger_action_show_fail_url(self):
+    def show_failed_url(self):
         failed_url_window = FailedUrlsWindow(failed_urls=self.download_failed_original_url_list, parent=self)
         failed_url_window.setWindowModality(Qt.ApplicationModal)
         failed_url_window.show()
 
-    def click_folder_line_edit_mouse_press(self, event):
+    def select_storage_folder(self, event: QMouseEvent):
         """
         Set the path for saving the image
         """
         if event.button() == Qt.LeftButton:
-            options = QFileDialog.Options()
-            options |= QFileDialog.ShowDirsOnly
-            if folder := QFileDialog.getExistingDirectory(self, "Select Folder", options=options):
+            if folder := QFileDialog.getExistingDirectory(self, "Select Folder", options=QFileDialog.ShowDirsOnly):
                 self.ui.folder_line_edit.setText(folder)
                 self.save_dir = Path(folder)
 
@@ -112,30 +114,45 @@ class MainWindow(QMainWindow):
         if checked and not self.ui.civitai_check_box.isChecked():
             self.ui.categorize_check_box.setChecked(False)
 
-    def click_clear_push_button(self):
+    def click_clear_push_button(self) -> None:
+        """
+        Initialize the program. After executing "Clip", the checkboxes for "CivitAi" and "Categorize" will be locked.
+        Only after executing "Clear" will all records be cleared and the checkboxes unlocked.
+        """
         reply = QMessageBox.question(self, 'Warning',
                                      'Are you sure you want to clear all records?',
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             self.legal_url_info_list.clear()
-            self.ui.civitai_check_box.setEnabled(True)
-            self.ui.categorize_check_box.setEnabled(True)
+            self.freeze_main_window(unfreeze=True)
+            self.operation_browser_insert_html(
+                '<span style="color: cyan;">'
+                f'{datetime.now().strftime("%H:%M:%S")} '
+                f'[ {len(self.legal_url_info_list)} URLs ] | Clear all records'
+                '</span>'
+            )
 
-    def click_clip_push_button(self) -> None:
-        legal_url_count = len(self.legal_url_info_list)
+    def start_clip_process(self) -> None:
+        """
+        Pop up the "Clip" window and start the clip process
+        """
+        if not self.save_dir:
+            QMessageBox.warning(self, 'Warning', 'Set the storage folder first')
+            return
+
         start_clip_window = StartClipWindow(for_civitai=self.ui.civitai_check_box.isChecked(),
                                             legal_url_list=self.legal_url_info_list, parent=self)
         start_clip_window.Start_clip_finished_signal.connect(self.handle_start_clip_finished_signal)
-        start_clip_window.Start_clip_close_window_signal.connect(self.handle_start_clip_close_window_signal)
+        start_clip_window.Start_clip_closed_window_signal.connect(self.handle_clip_closed_window_signal)
+        # Only after this QDialog is closed, the main window can be used again
         start_clip_window.setWindowModality(Qt.ApplicationModal)
         start_clip_window.show()
 
-        self.able_option_action(enable=False)
+        # If start_clip_window is set to Qt.WindowStaysOnTopHint, then setWindowModality(Qt.ApplicationModal) will be
+        # ineffective, and need to manually freeze the main window.
+        self.freeze_main_window()
 
     def handle_start_clip_finished_signal(self, finished_message: list):
-        self.ui.civitai_check_box.setEnabled(False)
-        self.ui.categorize_check_box.setEnabled(False)
-
         self.legal_url_info_list = finished_message
         self.ui.operation_text_browser.append(
             f'{datetime.now().strftime("%H:%M:%S")} '
@@ -143,25 +160,33 @@ class MainWindow(QMainWindow):
             f' or "Clip" to continue adding.'
         )
 
-    def handle_start_clip_close_window_signal(self, close_window_signal: bool):
-        if close_window_signal:
-            self.able_option_action()
+    def handle_clip_closed_window_signal(self):
+        if self.legal_url_info_list:
+            self.ui.folder_line_edit.setEnabled(True)
+            self.ui.clip_push_button.setEnabled(True)
+            self.ui.go_push_button.setEnabled(True)
+            self.ui.clear_push_button.setEnabled(True)
+        else:
+            self.freeze_main_window(unfreeze=True)
 
-    def click_go_push_button(self):
+    def click_go_push_button(self) -> None:
+        """
+        If support for civitai.com is not needed, download directly;
+        otherwise, execute the analysis of model name and version name first.
+        """
         if not self.save_dir:
             QMessageBox.warning(self, 'Warning', 'Set the storage folder first')
             return
 
         if not self.legal_url_info_list:
-            self.ui.operation_text_browser.append(
+            self.operation_browser_insert_html(
+                '<span style="color: pink;">'
                 f'{datetime.now().strftime("%H:%M:%S")} '
-                f'There are no URLs in the list'
+                f'[ {len(self.legal_url_info_list)} URLs ] | There are no URLs in the list'
+                '</span>'
             )
             return
 
-        self.ui.clip_push_button.setEnabled(False)
-        self.ui.go_push_button.setEnabled(False)
-        self.ui.actionLoadClipboardFile.setEnabled(False)
         self.clear_progress_bar()
 
         if self.ui.civitai_check_box.isChecked():
@@ -180,6 +205,10 @@ class MainWindow(QMainWindow):
             self.start_download_image(model_and_version_name=())
 
     def get_model_and_version_name(self) -> None:
+        """
+        Retrieve the mapping information between id and name.
+        :return:
+        """
         model_id_set = set()
         version_id_set = set()
 
@@ -219,7 +248,6 @@ class MainWindow(QMainWindow):
         )
         self.ui.go_push_button.setEnabled(True)
         self.ui.clip_push_button.setEnabled(True)
-        self.ui.actionLoadClipboardFile.setEnabled(True)
 
     def handle_parser_completed_signal(self, completed_message: tuple):
         is_model, name_info, task_name = completed_message
@@ -295,13 +323,13 @@ class MainWindow(QMainWindow):
                     '</span>'
                 )
             self.legal_url_info_list.clear()
-            self.able_buttons_and_checkbox()
+            self.freeze_main_window(unfreeze=True)
 
     def add_progress_bar(self, task_name: str, count: int) -> None:
         """
         Create a QLabel and QProgressBar (both within a QHBoxLayout)
         """
-        self.progress_bar_list.append(task_name)
+        self.progress_bar_task_name_list.append(task_name)
 
         progress_layout = QHBoxLayout()
         progress_label = QLabel(task_name)
@@ -316,16 +344,19 @@ class MainWindow(QMainWindow):
         self.progress_bar_info[task_name] = [progress_bar, 0, 0, count, progress_layout]
         self.ui.verticalLayout.addLayout(progress_layout)
 
-    def able_buttons_and_checkbox(self, enable=True) -> None:
+    def freeze_main_window(self, unfreeze=False):
         """
-        Enable/Disable clip, go buttons and civitai, categorize checkboxs and loadClipboardFile action
-        :param enable: set False to disable them
+        Freeze all buttons and options in the main window
+        :param unfreeze: set True to unfreeze all
         :return:
         """
-        self.ui.clip_push_button.setEnabled(enable)
-        self.ui.go_push_button.setEnabled(enable)
-        self.ui.civitai_check_box.setEnabled(enable)
-        self.ui.categorize_check_box.setEnabled(enable)
+        self.ui.folder_line_edit.setEnabled(unfreeze)
+        self.ui.clip_push_button.setEnabled(unfreeze)
+        self.ui.go_push_button.setEnabled(unfreeze)
+        self.ui.civitai_check_box.setEnabled(unfreeze)
+        self.ui.categorize_check_box.setEnabled(unfreeze)
+        self.ui.clear_push_button.setEnabled(unfreeze)
+        self.able_option_action(unfreeze)
 
     def able_option_action(self, enable=True) -> None:
         """
@@ -337,6 +368,12 @@ class MainWindow(QMainWindow):
         self.ui.actionShowFailUrl.setEnabled(enable)
 
     def operation_browser_insert_html(self, html_string: str, newline_first=True):
+        """
+        Using HTML syntax in self.ui.operation_text_browser
+        :param html_string:
+        :param newline_first:
+        :return:
+        """
         if newline_first:
             self.ui.operation_text_browser.append('')
         self.ui.operation_text_browser.insertHtml(html_string)
@@ -346,17 +383,17 @@ class MainWindow(QMainWindow):
         """
         Clear all progress bar layout
         """
-        for progress_name in self.progress_bar_list:
+        for progress_name in self.progress_bar_task_name_list:
             each_progres_bar_info = self.progress_bar_info[progress_name]
             layout = each_progres_bar_info[4]
             self.clear_layout_widgets(layout)
 
-        self.progress_bar_list.clear()
+        self.progress_bar_task_name_list.clear()
         self.progress_bar_info.clear()
 
     def clear_layout_widgets(self, layout) -> None:
         """
-        Clears all widgets within a layout, including sub-layouts.
+        Clears all widgets within a layout, including sub-layouts
         """
         while layout.count():
             item = layout.takeAt(0)
@@ -366,12 +403,18 @@ class MainWindow(QMainWindow):
                 self.clear_layout_widgets(item.layout())
 
     def closeEvent(self, event) -> None:
+        """
+        If self.legal_url_info_list is not empty, before closing the window, ask if you want to save it
+        :param event:
+        :return:
+        """
         if self.legal_url_info_list:
             reply = QMessageBox.question(self, 'Warning',
                                          'Do you want to save the URL of the clipboard before exiting？',
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.Yes:
-                record = (self.ui.civitai_check_box.isChecked(),
+                record = (self.save_dir,
+                          self.ui.civitai_check_box.isChecked(),
                           self.ui.categorize_check_box.isChecked(),
                           self.legal_url_info_list,
                           )
@@ -379,6 +422,7 @@ class MainWindow(QMainWindow):
                     pickle.dump(record, f)
 
             event.accept()
+
         event.accept()
 
     def clear_threadpool(self):

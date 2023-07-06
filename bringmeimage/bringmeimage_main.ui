@@ -96,7 +96,7 @@
       <item>
        <widget class="QPushButton" name="clear_push_button">
         <property name="toolTip">
-         <string>Clear all record list</string>
+         <string>Clear all record list and initialize the program</string>
         </property>
         <property name="text">
          <string>Clear</string>

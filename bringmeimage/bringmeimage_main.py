@@ -151,7 +151,7 @@ class Ui_MainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.categorize_check_box.setText(QCoreApplication.translate("MainWindow", u"Categorize", None))
 #if QT_CONFIG(tooltip)
-        self.clear_push_button.setToolTip(QCoreApplication.translate("MainWindow", u"Clear all record list", None))
+        self.clear_push_button.setToolTip(QCoreApplication.translate("MainWindow", u"Clear all record list and initialize the program", None))
 #endif // QT_CONFIG(tooltip)
         self.clear_push_button.setText(QCoreApplication.translate("MainWindow", u"Clear", None))
         self.menuOption.setTitle(QCoreApplication.translate("MainWindow", u"Option", None))

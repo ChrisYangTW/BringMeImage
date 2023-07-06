@@ -2,7 +2,6 @@ import contextlib
 from pathlib import Path
 
 import httpx
-
 from PySide6.QtCore import QObject, Signal, QRunnable, Slot
 
 
@@ -31,14 +30,14 @@ class ParserRunner(QRunnable):
 
     def get_model_name(self, model_id: str) -> None:
         try:
-            r = self.httpx_client.get(self.civitai_model_api_url+model_id)
+            r = self.httpx_client.get(self.civitai_model_api_url + model_id)
             self.signals.Parser_completed_signal.emit((True, {model_id: r.json()["name"]}, 'Preprocessing'))
         except Exception as e:
             self.signals.Parser_connect_to_api_failed_signal.emit((f'model:{model_id}, {e}', 'Preprocessing'))
 
     def get_version_name(self, version_id: str) -> None:
         try:
-            r = self.httpx_client.get(self.civitai_version_api_url+version_id)
+            r = self.httpx_client.get(self.civitai_version_api_url + version_id)
             self.signals.Parser_completed_signal.emit((False, {version_id: r.json()["name"]}, 'Preprocessing'))
         except Exception as e:
             self.signals.Parser_connect_to_api_failed_signal.emit((f'version:{version_id}, {e}', 'Preprocessing'))
@@ -73,11 +72,12 @@ class DownloadRunner(QRunnable):
 
     def get_save_path(self) -> Path:
         if not self.image_params or not self.categorize:
-            return Path(self.save_dir)
+            return self.save_dir
 
-        model_name = self.model_name_dict[self.image_params[0]]
-        version_name = self.version_name_dict[self.image_params[1]]
-        return Path(self.save_dir) / Path(model_name) / Path(version_name) / Path('gallery')
+        # Have to handle the model name like 'Skirt tug / dress tug / clothes tug'
+        model_name: str = self.model_name_dict[self.image_params[0]].replace('/', '_').replace('\\', '_')
+        version_name: str = self.version_name_dict[self.image_params[1]].replace('/', '_').replace('\\', '_')
+        return self.save_dir / model_name / version_name / 'gallery'
 
     def get_real_image_url(self) -> str:
         model_id, model_version_id, post_id, image_id = self.image_params
@@ -123,7 +123,7 @@ class DownloadRunner(QRunnable):
                         f.write(date)
 
             self.signals.download_completed_signal.emit((f'{self.image_original_url}', 'Download ok', 'Downloading'))
-        except Exception:
+        except Exception as _:
             self.signals.download_connect_to_api_failed_signal.emit(
                 (f'{self.image_original_url}', 'There are URLs that cannot be downloaded', 'Downloading')
             )
