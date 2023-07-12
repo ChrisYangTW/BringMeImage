@@ -28,7 +28,7 @@ class MainWindow(QMainWindow):
         self.started_clip = False
         self.save_dir = None
         self.legal_url_info_list = []
-        self.download_failed_original_url_list = []
+        self.download_failed_list = []
         self.model_count = 0
         self.version_count = 0
         self.model_name_dict = {}
@@ -47,6 +47,15 @@ class MainWindow(QMainWindow):
         self.ui.go_push_button.clicked.connect(self.click_go_push_button)
 
     def load_clipboard_file(self):
+        if self.download_failed_list:
+            reply = QMessageBox.question(self, 'Warning',
+                                         'Loading the file will clear the failed download record, execute it?',
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.No:
+                return
+            else:
+                self.download_failed_list.clear()
+
         filters = 'Bring Me Image Files (*.bringmeimage)'
         file, _ = QFileDialog.getOpenFileName(self, 'Select File', '', filters, options=QFileDialog.ReadOnly)
         if file:
@@ -60,9 +69,9 @@ class MainWindow(QMainWindow):
                     f'The file appears to have been modified and is no longer readable'
                     '</span>'
                 )
-            self.load_record(record)
+            self.process_the_record(record)
 
-    def load_record(self, record: tuple):
+    def process_the_record(self, record: tuple):
         self.operation_browser_insert_html(
             '<span style="color: cyan;">'
             f'{datetime.now().strftime("%H:%M:%S")} '
@@ -85,7 +94,7 @@ class MainWindow(QMainWindow):
         self.ui.actionShowFailUrl.setEnabled(False)
 
     def show_failed_url(self):
-        failed_url_window = FailedUrlsWindow(failed_urls=self.download_failed_original_url_list, parent=self)
+        failed_url_window = FailedUrlsWindow(failed_urls=self.download_failed_list, parent=self)
         failed_url_window.setWindowModality(Qt.ApplicationModal)
         failed_url_window.show()
 
@@ -136,6 +145,15 @@ class MainWindow(QMainWindow):
         """
         Pop up the "Clip" window and start the clip process
         """
+        if self.download_failed_list:
+            reply = QMessageBox.question(self, 'Warning',
+                                         'Starting "Clip" will clear the failed download record, execute it?',
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.No:
+                return
+            else:
+                self.download_failed_list.clear()
+
         if not self.save_dir:
             QMessageBox.warning(self, 'Warning', 'Set the storage folder first')
             return
@@ -283,16 +301,9 @@ class MainWindow(QMainWindow):
             self.pool.start(downloader)
 
     def handle_download_connect_to_api_failed_signal(self, failed_message: tuple):
-        original_url, message, task_name = failed_message
-        self.download_failed_original_url_list.append(original_url)
+        original_url, model_name, version_name, message, task_name = failed_message
+        self.download_failed_list.append((original_url, model_name, version_name))
         self.progress_bar_info[task_name][2] += 1
-        self.operation_browser_insert_html(
-            '<span style="color: pink;">'
-            f'{datetime.now().strftime("%H:%M:%S")} '
-            f'[ {len(self.legal_url_info_list)} URLs ] | '
-            f'{message}'
-            '</span>'
-        )
         self.handle_download_task(task_name)
 
     def handle_download_completed_signal(self, completed_message: tuple):
@@ -322,6 +333,7 @@ class MainWindow(QMainWindow):
                     f'failed downloads for URLs. Check them at Option > Show Failed URLs'
                     '</span>'
                 )
+                self.has_failed_urls = True
             self.legal_url_info_list.clear()
             self.freeze_main_window(unfreeze=True)
 

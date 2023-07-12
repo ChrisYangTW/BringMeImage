@@ -53,16 +53,14 @@ class DownloadRunner(QRunnable):
                  categorize:bool, model_and_version_name: tuple):
         super().__init__()
         self.httpx_client = httpx_client
-        # (model_id, model_version_id, post_id, image_id)
         self.image_original_url, self.image_params = image_info
+        # self.image_params = (model_id, model_version_id, post_id, image_id)
         self.save_dir = save_dir
         self.categorize = categorize
+        self.model_name_dict, self.version_name_dict = model_and_version_name or ({}, {})
 
-        self.signals = DownloadRunnerSignals()
         self.civitai_image_api_url = 'https://civitai.com/api/v1/images?'
-
-        if model_and_version_name:
-            self.model_name_dict, self.version_name_dict = model_and_version_name
+        self.signals = DownloadRunnerSignals()
 
     @Slot()
     def run(self) -> None:
@@ -97,8 +95,10 @@ class DownloadRunner(QRunnable):
                 return real_url
 
         self.signals.download_connect_to_api_failed_signal.emit(
-            (f'{self.image_original_url}',
-             'There are URLs that cannot be downloaded',
+            (self.image_original_url,
+             self.model_name_dict.get(self.image_params[0]),
+             self.version_name_dict.get(self.image_params[1]),
+             'Fail to get a real url',
              'Downloading')
         )
         return ''
@@ -122,8 +122,12 @@ class DownloadRunner(QRunnable):
                     if date:
                         f.write(date)
 
-            self.signals.download_completed_signal.emit((f'{self.image_original_url}', 'Download ok', 'Downloading'))
+            self.signals.download_completed_signal.emit((f'{self.image_original_url}', 'Download success', 'Downloading'))
         except Exception as _:
             self.signals.download_connect_to_api_failed_signal.emit(
-                (f'{self.image_original_url}', 'There are URLs that cannot be downloaded', 'Downloading')
+                (self.image_original_url,
+                 self.model_name_dict.get(self.image_params[0]),
+                 self.version_name_dict.get(self.image_params[1]),
+                 'Download failed',
+                 'Downloading')
             )
