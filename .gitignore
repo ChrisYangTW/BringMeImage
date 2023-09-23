@@ -163,3 +163,4 @@ cython_debug/
 try_code/
 example/
 *.bringmeimage
+.DS_Store/

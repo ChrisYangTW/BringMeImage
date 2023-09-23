@@ -56,8 +56,8 @@ class MainWindow(QMainWindow):
             else:
                 self.download_failed_list.clear()
 
-        filters = 'Bring Me Image Files (*.bringmeimage)'
-        file, _ = QFileDialog.getOpenFileName(self, 'Select File', '', filters, options=QFileDialog.ReadOnly)
+        filter_str = 'Bring Me Image Files (*.bringmeimage)'
+        file, _ = QFileDialog.getOpenFileName(self, 'Select File', '', filter_str, options=QFileDialog.ReadOnly)
         if file:
             try:
                 with open(file, 'rb') as f:
@@ -69,13 +69,15 @@ class MainWindow(QMainWindow):
                     f'The file appears to have been modified and is no longer readable'
                     '</span>'
                 )
-            self.process_the_record(record)
+            else:
+                filename = file.rsplit('/', maxsplit=1)[-1]
+                self.process_the_record(filename, record)
 
-    def process_the_record(self, record: tuple):
+    def process_the_record(self, filename: str, record: tuple):
         self.operation_browser_insert_html(
             '<span style="color: cyan;">'
             f'{datetime.now().strftime("%H:%M:%S")} '
-            f'[ {len(self.legal_url_info_list)} URLs ] | Loading clipboard from file'
+            f'[ {len(self.legal_url_info_list)} URLs ] | Loading clipboard from "{filename}"'
             '</span>'
         )
         self.save_dir = record[0]
