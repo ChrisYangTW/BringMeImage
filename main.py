@@ -236,16 +236,23 @@ class MainWindow(QMainWindow):
             model_id_set.add(image_info[1][0])
             version_id_set.add(image_info[1][1])
 
+        model_id_set.discard(None)
+        version_id_set.discard(None)
+
         self.model_count = len(model_id_set)
         self.version_count = len(version_id_set)
-        self.add_progress_bar(task_name='Preprocessing', count=self.model_count + self.version_count)
 
-        for model_id in model_id_set:
-            parser = ParserRunner(httpx_client=self.httpx_client, model_id=model_id)
-            self.set_signal_and_add_to_pool(parser)
-        for version_id in version_id_set:
-            parser = ParserRunner(httpx_client=self.httpx_client, version_id=version_id)
-            self.set_signal_and_add_to_pool(parser)
+        if self.model_count + self.version_count:
+            self.add_progress_bar(task_name='Preprocessing', count=self.model_count + self.version_count)
+
+            for model_id in model_id_set:
+                parser = ParserRunner(httpx_client=self.httpx_client, model_id=model_id)
+                self.set_signal_and_add_to_pool(parser)
+            for version_id in version_id_set:
+                parser = ParserRunner(httpx_client=self.httpx_client, version_id=version_id)
+                self.set_signal_and_add_to_pool(parser)
+        else:
+            self.start_download_image(model_and_version_name=())
 
     def set_signal_and_add_to_pool(self, parser):
         parser.signals.Parser_connect_to_api_failed_signal.connect(self.handle_parser_connect_to_api_failed_signal)

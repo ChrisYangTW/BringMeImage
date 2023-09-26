@@ -28,8 +28,10 @@ class StartClipWindow(QDialog):
         self.started_clip = False
 
         # r'/(\d+)\?(?:(?=[^?]*modelVersionId=(\d+)))?(?:(?=[^?]*modelId=(\d+)))?(?:(?=[^?]*postId=(\d+)))?')
-        self.for_civitai_pattern = re.compile(
+        self.for_civitai_pattern_1 = re.compile(
             r"https://civitai.com/images/(\d+)\?.*&modelVersionId=(\d+)&modelId=(\d+)&postId=(\d+)")
+        self.for_civitai_pattern_2 = re.compile(
+            r"https://civitai.com/images/(\d+)\?postId=(\d+)&tags=(\d+)")
         self.normal_pattern = re.compile(r".+\.(png|jpeg|jpg)$")
 
         self.clipboard = QApplication.clipboard()
@@ -127,29 +129,31 @@ class StartClipWindow(QDialog):
                     self.legal_url_list.append(url_info)
                     self.count_label.setText(f'Clip: {len(self.legal_url_list)}')
 
-    def initial_parse(self, url_text: str) -> tuple|None:
+    def initial_parse(self, url_text: str) -> tuple | None:
         """
         if url_text is legal, return (url_text, (model_id, model_version_id, post_id, image_id))
         :param url_text:
         :return:
         """
+        url_info = ''
         if self.for_civitai:
-            if match := self.for_civitai_pattern.match(url_text):
+            if match := self.for_civitai_pattern_1.match(url_text):
                 url_info = url_text, (match[3], match[2], match[4], match[1])
-                if url_info in self.legal_url_list:
-                    print('\033[33m' + f'URL existed: {url_text}' + '\033[0m')
-                    return
-                return url_info
+            elif match := self.for_civitai_pattern_2.match(url_text):
+                url_info = url_text, (None, None, match[2], match[1])
         elif match := self.normal_pattern.match(url_text):
             url_info = url_text, None
-            if url_info in self.legal_url_list:
-                print('\033[33m' + f'URL existed: {url_text}' + '\033[0m')
-                return
-            return url_info
+
+        if url_info:
+            if url_info not in self.legal_url_list:
+                return url_info
+            print('\033[33m' + f'URL existed: {url_text}' + '\033[0m')
+            return
         # disable self.illegal (used for test)
         # self.illegal_label.setText('illegal url')
         # self.time_for_show_not_legal.singleShot(1000, lambda: self.illegal_label.setText(''))
         print('\033[33m' + f'URL cannot parse: {url_text}' + '\033[0m')
+
 
 if __name__ == '__main__':
     from PySide6.QtWidgets import QMainWindow

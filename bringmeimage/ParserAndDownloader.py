@@ -50,7 +50,7 @@ class DownloadRunnerSignals(QObject):
 
 class DownloadRunner(QRunnable):
     def __init__(self, httpx_client: httpx.Client, image_info: tuple, save_dir: Path,
-                 categorize:bool, model_and_version_name: tuple):
+                 categorize: bool, model_and_version_name: tuple):
         super().__init__()
         self.httpx_client = httpx_client
         self.image_original_url, self.image_params = image_info
@@ -72,16 +72,22 @@ class DownloadRunner(QRunnable):
         if not self.image_params or not self.categorize:
             return self.save_dir
 
-        # Have to handle the model name like 'Skirt tug / dress tug / clothes tug'
-        model_name: str = self.model_name_dict[self.image_params[0]].replace('/', '_').replace('\\', '_')
-        version_name: str = self.version_name_dict[self.image_params[1]].replace('/', '_').replace('\\', '_')
-        return self.save_dir / model_name / version_name / 'gallery'
+        try:
+            # Have to handle the model name like 'Skirt tug / dress tug / clothes tug'
+            model_name: str = self.model_name_dict[self.image_params[0]].replace('/', '_').replace('\\', '_')
+            version_name: str = self.version_name_dict[self.image_params[1]].replace('/', '_').replace('\\', '_')
+            return self.save_dir / model_name / version_name / 'gallery'
+        except KeyError as e:
+            return self.save_dir / 'CIVIT_AI_images'
 
     def get_real_image_url(self) -> str:
         model_id, model_version_id, post_id, image_id = self.image_params
 
         with contextlib.suppress(Exception):
-            url = f'{self.civitai_image_api_url}modelId={model_id}&modelVersionId={model_version_id}&postId={post_id}'
+            if not model_id:
+                url = f'{self.civitai_image_api_url}postId={post_id}'
+            else:
+                url = f'{self.civitai_image_api_url}modelId={model_id}&modelVersionId={model_version_id}&postId={post_id}'
             r = self.httpx_client.get(url)
             image_info = r.json()['items']
             if real_url := next(
