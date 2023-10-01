@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QDialog, QVBoxLayout, QPushButton, QWidget, QTextB
 
 class FailedUrlsWindow(QDialog):
     """
-    QDialog window for show history
+    QDialog window for displaying the failed download image links
     """
     def __init__(self, failed_urls: list = None, parent=None):
         super().__init__(parent)
@@ -73,7 +73,6 @@ if __name__ == '__main__':
             self.button1 = QPushButton('Open History Window', self)
             self.button1.clicked.connect(self.show_editable_window)
             v_layout.addWidget(self.button1)
-
 
         def show_editable_window(self):
             history_window = FailedUrlsWindow(

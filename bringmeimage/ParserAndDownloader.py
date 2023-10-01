@@ -1,65 +1,73 @@
-import contextlib
 from pathlib import Path
+from collections import namedtuple
 
 import httpx
 from PySide6.QtCore import QObject, Signal, QRunnable, Slot
 
 
 class ParserRunnerSignals(QObject):
-    Parser_connect_to_api_failed_signal = Signal(tuple)
-    Parser_completed_signal = Signal(tuple)
+    Parser_Connect_To_API_Failed_Signal = Signal(tuple)
+    Parser_Completed_Signal = Signal(tuple)
 
 
 class ParserRunner(QRunnable):
-    def __init__(self, httpx_client: httpx.Client, model_id='', version_id=''):
+    """
+    Get the version info:
+    {version_id: nametuple(version_name, model_id, model_name, creator)}
+    """
+    def __init__(self, httpx_client: httpx.Client, version_id: str):
         super().__init__()
         self.httpx_client = httpx_client
-        self.model_id = model_id
         self.version_id = version_id
 
-        self.signals = ParserRunnerSignals()
         self.civitai_model_api_url = 'https://civitai.com/api/v1/models/'
         self.civitai_version_api_url = 'https://civitai.com/api/v1/model-versions/'
 
+        self.signals = ParserRunnerSignals()
+        self.version_info = namedtuple('version_info', 'version_name, model_id, model_name, creator')
+
     @Slot()
     def run(self) -> None:
-        if self.model_id:
-            self.get_model_name(self.model_id)
-        else:
-            self.get_version_name(self.version_id)
+        self.get_version_id_info()
 
-    def get_model_name(self, model_id: str) -> None:
+    def get_version_id_info(self) -> None:
         try:
+            r = self.httpx_client.get(self.civitai_version_api_url + self.version_id)
+            version_data = r.json()
+            version_name = version_data['name']
+            model_id = str(version_data['modelId'])
+
             r = self.httpx_client.get(self.civitai_model_api_url + model_id)
-            self.signals.Parser_completed_signal.emit((True, {model_id: r.json()["name"]}, 'Preprocessing'))
-        except Exception as e:
-            self.signals.Parser_connect_to_api_failed_signal.emit((f'model:{model_id}, {e}', 'Preprocessing'))
+            model_date = r.json()
+            model_name = model_date['name']
+            # assert model_name == version_data['model']['name']
+            creator = model_date['creator']['username']
 
-    def get_version_name(self, version_id: str) -> None:
-        try:
-            r = self.httpx_client.get(self.civitai_version_api_url + version_id)
-            self.signals.Parser_completed_signal.emit((False, {version_id: r.json()["name"]}, 'Preprocessing'))
+            version_id_info = {self.version_id: self.version_info(version_name, model_id, model_name, creator)}
+            self.signals.Parser_Completed_Signal.emit((version_id_info, 'Preprocessing'))
         except Exception as e:
-            self.signals.Parser_connect_to_api_failed_signal.emit((f'version:{version_id}, {e}', 'Preprocessing'))
+            self.signals.Parser_Connect_To_API_Failed_Signal.emit((f'versionId:{self.version_id}, {e}', 'Preprocessing'))
 
 
 class DownloadRunnerSignals(QObject):
-    download_connect_to_api_failed_signal = Signal(tuple)
+    download_failed_signal = Signal(tuple)
     download_completed_signal = Signal(tuple)
 
 
 class DownloadRunner(QRunnable):
     def __init__(self, httpx_client: httpx.Client, image_info: tuple, save_dir: Path,
-                 categorize: bool, model_and_version_name: tuple):
+                 categorize: bool, version_id_info_dict: dict | None):
         super().__init__()
         self.httpx_client = httpx_client
+        # hint: image_info = (url_text, (modelVersionId, postId, imageId))
         self.image_original_url, self.image_params = image_info
-        # self.image_params = (model_id, model_version_id, post_id, image_id)
         self.save_dir = save_dir
         self.categorize = categorize
-        self.model_name_dict, self.version_name_dict = model_and_version_name or ({}, {})
+        self.version_id_info_dict = version_id_info_dict
+        self.model_name = ''
+        self.version_name = ''
 
-        self.civitai_image_api_url = 'https://civitai.com/api/v1/images?'
+        self.civitai_image_api_url = 'https://civitai.com/api/v1/images'
         self.signals = DownloadRunnerSignals()
 
     @Slot()
@@ -72,45 +80,48 @@ class DownloadRunner(QRunnable):
         if not self.image_params or not self.categorize:
             return self.save_dir
 
-        try:
-            # Have to handle the model name like 'Skirt tug / dress tug / clothes tug'
-            model_name: str = self.model_name_dict[self.image_params[0]].replace('/', '_').replace('\\', '_')
-            version_name: str = self.version_name_dict[self.image_params[1]].replace('/', '_').replace('\\', '_')
-            return self.save_dir / model_name / version_name / 'gallery'
-        except KeyError as e:
-            return self.save_dir / 'CIVIT_AI_images'
+        modelVersionId = self.image_params[0]
+        if not modelVersionId:
+            return self.save_dir / 'CIVIT_POST_Images'
+
+        # Have to handle the model name like 'Skirt tug / dress tug / clothes tug'
+        # hint: version_id_info_dict = {version_id1: nametuple(version_name, model_id, model_name, creator), ...}
+        self.model_name = self.version_id_info_dict[modelVersionId].model_name.replace('/', '_').replace('\\', '_')
+        self.version_name = self.version_id_info_dict[modelVersionId].version_name.replace('/', '_').replace('\\', '_')
+        return self.save_dir / self.model_name / self.version_name / 'gallery'
 
     def get_real_image_url(self) -> str:
-        model_id, model_version_id, post_id, image_id = self.image_params
+        modelVersionId, postId, imageId= self.image_params
 
-        with contextlib.suppress(Exception):
-            if not model_id:
-                url = f'{self.civitai_image_api_url}postId={post_id}'
+        try:
+            if not modelVersionId:
+                params = {'postId': postId}
+            elif postId:
+                params = {'modelVersionId': modelVersionId,
+                          'postId': postId}
             else:
-                url = f'{self.civitai_image_api_url}modelId={model_id}&modelVersionId={model_version_id}&postId={post_id}'
-            r = self.httpx_client.get(url)
-            image_info = r.json()['items']
-            if real_url := next(
-                (
-                    image['url']
-                    for image in image_info
-                    if image['id'] == int(image_id)
-                ),
-                '',
-            ):
+                username = self.version_id_info_dict[modelVersionId].creator
+                params = {'modelVersionId': modelVersionId,
+                          'username': username}
+
+            r = self.httpx_client.get(self.civitai_image_api_url, params=params)
+            data = r.json()['items']
+            if real_url := next((image['url'] for image in data if image['id'] == int(imageId)), ''):
                 return real_url
+        except Exception as e:
+            print(e, f'raise Exception: get_real_image_url(), {r.url=}')
+            return ''
 
-        self.signals.download_connect_to_api_failed_signal.emit(
-            (self.image_original_url,
-             self.model_name_dict.get(self.image_params[0]),
-             self.version_name_dict.get(self.image_params[1]),
-             'Fail to get a real url',
-             'Downloading')
-        )
-        return ''
-
-    def download_image(self, url: str):
+    def download_image(self, url: str) -> None:
         if not url:
+            self.signals.download_failed_signal.emit(
+                (self.image_original_url,
+                 self.model_name,
+                 self.version_name,
+                 'Fail to get a real url for API',
+                 'Downloading',
+                 self.image_params)
+            )
             return
 
         self.save_dir.mkdir(parents=True, exist_ok=True)
@@ -129,11 +140,12 @@ class DownloadRunner(QRunnable):
                         f.write(date)
 
             self.signals.download_completed_signal.emit((f'{self.image_original_url}', 'Download success', 'Downloading'))
-        except Exception as _:
-            self.signals.download_connect_to_api_failed_signal.emit(
+        except Exception as e:
+            self.signals.download_failed_signal.emit(
                 (self.image_original_url,
-                 self.model_name_dict.get(self.image_params[0]),
-                 self.version_name_dict.get(self.image_params[1]),
+                 self.model_name,
+                 self.version_name,
                  'Download failed',
-                 'Downloading')
+                 'Downloading',
+                 self.image_params)
             )

@@ -1,3 +1,13 @@
+# QDialog window for copying URLs that match the parsing rules.
+# Supported formats:
+#     for civitai.com:
+#         "https://civitai.com/images/(\d+)\?.*&modelVersionId=(\d+)&modelId=\d+&postId=(\d+)"
+#         "https://civitai.com/images/(\d+)\?modelVersionId=(\d+)&prioritizedUserIds=\d+&period=.*&sort=.*&limit=.*"
+#         "https://civitai.com/images/(\d+)\?postId=(\d+)"
+#     for general picture file:
+#         ".+\.(png|jpeg|jpg)$"
+
+
 import re
 
 from PySide6.QtCore import Signal, Qt, QTimer
@@ -8,15 +18,14 @@ from PySide6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QPushButton, 
 
 class StartClipWindow(QDialog):
     """
-    QDialog window for starting to clip and parse urls
+    QDialog window for starting to clip and parsing URLs
     """
-    Start_clip_closed_window_signal = Signal()
-    Start_clip_finished_signal = Signal(list)
+    Start_Clip_Closed_Window_Signal = Signal(list)
 
-    def __init__(self, for_civitai: bool, legal_url_list: list, parent=None):
+    def __init__(self, for_civitai: bool, legal_url_info_list: list, parent=None):
         super().__init__(parent)
         self.for_civitai = for_civitai
-        self.legal_url_list = legal_url_list
+        self.legal_url_info_list = legal_url_info_list
         self.initUI()
         # Dialog always stay on
         self.setWindowFlag(Qt.WindowStaysOnTopHint)
@@ -25,13 +34,18 @@ class StartClipWindow(QDialog):
         self.show()
 
         self.clipboard_text_list = []
-        self.started_clip = False
+        self.isStarted = False
 
         # r'/(\d+)\?(?:(?=[^?]*modelVersionId=(\d+)))?(?:(?=[^?]*modelId=(\d+)))?(?:(?=[^?]*postId=(\d+)))?')
         self.for_civitai_pattern_1 = re.compile(
-            r"https://civitai.com/images/(\d+)\?.*&modelVersionId=(\d+)&modelId=(\d+)&postId=(\d+)")
+            r"https://civitai.com/images/(?P<imageId>\d+)"
+            r"\?.*&modelVersionId=(?P<modelVersionId>\d+)&modelId=\d+&postId=(?P<postId>\d+)")
         self.for_civitai_pattern_2 = re.compile(
-            r"https://civitai.com/images/(\d+)\?postId=(\d+)&tags=(\d+)")
+            r"https://civitai.com/images/(?P<imageId>\d+)"
+            r"\?modelVersionId=(?P<modelVersionId>\d+)&prioritizedUserIds=\d+&period=.*&sort=.*&limit=.*")
+        self.for_civitai_pattern_3 = re.compile(
+            r"https://civitai.com/images/(?P<imageId>\d+)"
+            r"\?postId=(?P<postId>\d+)")
         self.normal_pattern = re.compile(r".+\.(png|jpeg|jpg)$")
 
         self.clipboard = QApplication.clipboard()
@@ -53,7 +67,7 @@ class StartClipWindow(QDialog):
         self.start_clip_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.v_layout.addWidget(self.start_clip_button)
 
-        self.count_label = QLabel(f'Clip: {len(self.legal_url_list)}')
+        self.count_label = QLabel(f'Clip: {len(self.legal_url_info_list)}')
         font = QFont()
         font.setPointSize(18)
         self.count_label.setFont(font)
@@ -80,42 +94,39 @@ class StartClipWindow(QDialog):
     # Overrides the reject() to allow users to cancel the dialog using the ESC key
     def reject(self, called_by_finished_button=False) -> None:
         """
-        If self.legal_url_list is not empty, ask the user before closing the window
-        :param called_by_finished_button: set True for ignoring whether self.legal_url_list is empty
+        If self.legal_url_info_list is not empty, ask the user before closing the window
+        :param called_by_finished_button: set True for emitting a signal (self.legal_url_info_list)
         :return:
         """
-        if self.started_clip:
+        if self.isStarted:
             return
 
-        if not called_by_finished_button and self.legal_url_list:
+        if not called_by_finished_button and self.legal_url_info_list:
             reply = QMessageBox.question(self, 'Warning',
                                          'There are existing records. Are you sure you want to close the window?',
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.No:
                 return
+            self.done(0)
+            return
 
-        self.Start_clip_closed_window_signal.emit()
+        self.Start_Clip_Closed_Window_Signal.emit(self.legal_url_info_list)
         self.done(0)
 
     def start_clip(self) -> None:
-        if self.started_clip:
-            self.started_clip = False
+        if self.isStarted:
+            self.isStarted = False
             self.start_clip_button.setText('Start')
             self.timer_for_update_clipboard.stop()
             self.finish_clip_button.setEnabled(True)
         else:
             self.clipboard.clear()
-            self.started_clip = True
+            self.isStarted = True
             self.start_clip_button.setText('Stop')
             self.finish_clip_button.setEnabled(False)
             self.timer_for_update_clipboard.start(1000)
 
-    def finish_clip(self):
-        if not self.legal_url_list:
-            self.reject(called_by_finished_button=True)
-            return
-
-        self.Start_clip_finished_signal.emit(self.legal_url_list)
+    def finish_clip(self) -> None:
         self.reject(called_by_finished_button=True)
 
     def update_clipboard(self) -> None:
@@ -126,32 +137,32 @@ class StartClipWindow(QDialog):
             if url_text not in self.clipboard_text_list:
                 self.clipboard_text_list.append(url_text)
                 if url_info := self.initial_parse(url_text):
-                    self.legal_url_list.append(url_info)
-                    self.count_label.setText(f'Clip: {len(self.legal_url_list)}')
+                    self.legal_url_info_list.append(url_info)
+                    self.count_label.setText(f'Clip: {len(self.legal_url_info_list)}')
 
     def initial_parse(self, url_text: str) -> tuple | None:
         """
-        if url_text is legal, return (url_text, (model_id, model_version_id, post_id, image_id))
+        if url_text is legal, return (url_text, (modelVersionId, postId, imageId))
         :param url_text:
         :return:
         """
         url_info = ''
         if self.for_civitai:
             if match := self.for_civitai_pattern_1.match(url_text):
-                url_info = url_text, (match[3], match[2], match[4], match[1])
+                url_info = url_text, (match.group('modelVersionId'), match.group('postId'), match.group('imageId'))
             elif match := self.for_civitai_pattern_2.match(url_text):
-                url_info = url_text, (None, None, match[2], match[1])
+                url_info = url_text, (match.group('modelVersionId'), None, match.group('imageId'))
+            elif match := self.for_civitai_pattern_3.match(url_text):
+                url_info = url_text, (None, match.group('postId'), match.group('imageId'))
         elif match := self.normal_pattern.match(url_text):
             url_info = url_text, None
 
         if url_info:
-            if url_info not in self.legal_url_list:
+            if url_info not in self.legal_url_info_list:
                 return url_info
-            print('\033[33m' + f'URL existed: {url_text}' + '\033[0m')
+            print('\033[33m' + f'URL already exists in the legal list: {url_text}' + '\033[0m')
             return
-        # disable self.illegal (used for test)
-        # self.illegal_label.setText('illegal url')
-        # self.time_for_show_not_legal.singleShot(1000, lambda: self.illegal_label.setText(''))
+
         print('\033[33m' + f'URL cannot parse: {url_text}' + '\033[0m')
 
 
@@ -171,17 +182,26 @@ if __name__ == '__main__':
             widget.setLayout(self.v_layout)
             self.setCentralWidget(widget)
 
-            self.button = QPushButton('Open Window', self)
-            self.button.clicked.connect(self.show_window)
-            self.v_layout.addWidget(self.button)
+            self.button_1 = QPushButton('For civitai.com', self)
+            self.button_1.clicked.connect(lambda: self.show_window(1))
+            self.v_layout.addWidget(self.button_1)
 
-        def show_window(self):
-            start_clip_window = StartClipWindow(for_civitai=True, legal_url_list=[], parent=self)
-            start_clip_window.Start_clip_finished_signal.connect(self.handle_start_clip_finished_signal)
+            self.button_2 = QPushButton('For general image', self)
+            self.button_2.clicked.connect(lambda: self.show_window(2))
+            self.v_layout.addWidget(self.button_2)
+
+        def show_window(self, window_type: int):
+            if window_type == 1:
+                start_clip_window = StartClipWindow(for_civitai=True, legal_url_info_list=[], parent=self)
+            else:
+                start_clip_window = StartClipWindow(for_civitai=False, legal_url_info_list=[], parent=self)
+
+            start_clip_window.Start_Clip_Closed_Window_Signal.connect(self.handle_clip_closed_window_signal)
             start_clip_window.setWindowModality(Qt.ApplicationModal)
             start_clip_window.show()
 
-        def handle_start_clip_finished_signal(self, info: list):
+        @staticmethod
+        def handle_clip_closed_window_signal(info: list):
             for info in info:
                 print(info)
 
