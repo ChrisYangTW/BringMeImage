@@ -1,4 +1,4 @@
-# Bring Me Image (v0.1.1)
+# Bring Me Image (v0.1.2)
 In the Gallery section of each model (each version) page on civitai.com, there are many images uploaded by regular users. If you often need to click on individual images and use the right-click to download them one by one, this project might be helpful for you.
 
 ![sample1](examples/sample1_v0_1_0.png)
