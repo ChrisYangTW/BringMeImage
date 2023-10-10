@@ -42,12 +42,13 @@ You can use pyinstaller, py2app, py2exe to convert the code into an executable f
       * If you click on the image, you can also copy the link from the address bar.
          * ![sample5](examples/sample5_v0_1_0.png)
       * In fact, you can observe that these hyperlinks have the same format. If they do not match the format, a message will be displayed in the terminal.
-         * format: ..com/images/99999?...&modelVersionId=9999&modelId=9999&postId=9999
+         * Within individual model pages:  ..com/images/99999?...&modelVersionId=9999&modelId=9999...
+         * Within each user's posts page:  ..com/images/99999?postId=99999
    2. Unchecked the "CivitAI" checkbox:
       1. Copy the static link of the image, which is not limited to using it in the Gallery. As long as you make sure to copy the static link of the image (supporting only .png, .jpg, .jpeg), it will work.
       2. If the link does not end with .png, .jpg, or .jpeg, a message will also be displayed in the terminal.
 5. Save and Load "Clip list" Records
-   1. Considering the high traffic on Civitai.com, if the server doesn't respond during the "Clipping" process, you can still complete and finish the "Clip" task. Afterwards, you can close the main window, and it will prompt you whether you want to save the list. Selecting 'Yes' will automatically save and close the window.
+   1. Considering the high traffic on Civitai.com, if the server doesn't respond during the "Clipping" process, you can still complete and finish the "Clip" task. Afterwards, you can close the main window, and it will prompt you whether you want to save the list. Selecting 'Yes' will automatically save and close the window. (You can also save the records and keep the program running through 'Options > Save the Record'.)
    2. The saved file, which is a pickle file, will be stored in the same folder as main.py. It contains all the configuration parameters, so please avoid making any arbitrary modifications.
    3. Option > Load Clipboard File. Load Clip Records, you can resume the Clip task or click "GO" to start downloading.
 6. Example Video:
@@ -62,8 +63,8 @@ You can use pyinstaller, py2app, py2exe to convert the code into an executable f
 ## Test environment
 ```
 Python 3.11
-Macbook Pro16 M1 (OS Version 13.4 (22F66))
-Browser: Safari 16.5, Firefox 114.0.1
+Macbook Pro16 M1 (OS 14.0 (23A344))
+Browser: Safari 17.0
 ```
 
 ## Additional note

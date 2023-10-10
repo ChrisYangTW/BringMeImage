@@ -1,5 +1,6 @@
-import pickle
 import sys
+import pickle
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -14,6 +15,15 @@ from bringmeimage.bringmeimage_main import Ui_MainWindow
 from bringmeimage.StartClipWindow import StartClipWindow
 from bringmeimage.ActionWindow import FailedUrlsWindow
 from bringmeimage.ParserAndDownloader import ParserRunner, DownloadRunner
+
+
+@dataclass
+class ProgressBarInfo:
+    progress_layout: QHBoxLayout
+    progress_bar_widget: QProgressBar
+    downloaded: int
+    executed: int
+    quantity_of_all_task: int
 
 
 class MainWindow(QMainWindow):
@@ -37,6 +47,7 @@ class MainWindow(QMainWindow):
 
         self.ui.actionLoadClipboardFile.triggered.connect(self.load_clipboard_file)
         self.ui.actionShowFailUrl.triggered.connect(self.show_failed_url)
+        self.ui.actionSaveTheRecord.triggered.connect(self.save_the_record)
         self.ui.folder_line_edit.mousePressEvent = self.select_storage_folder
         self.ui.civitai_check_box.clicked.connect(self.click_civitai_check_box)
         self.ui.categorize_check_box.clicked.connect(self.click_categorize_check_box)
@@ -108,6 +119,36 @@ class MainWindow(QMainWindow):
         failed_url_window = FailedUrlsWindow(failed_urls=self.download_failed_url_info_list, parent=self)
         failed_url_window.setWindowModality(Qt.ApplicationModal)
         failed_url_window.show()
+
+    def save_the_record(self) -> None:
+        """
+        Save the record without exiting the program
+        """
+        if self.legal_url_info_list:
+            reply = QMessageBox.question(self, 'Warning',
+                                         'Do you want to save the URL of the clipboard？'
+                                         '(The current records will be cleared after saving)',
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                record = (self.save_dir,
+                          self.ui.civitai_check_box.isChecked(),
+                          self.ui.categorize_check_box.isChecked(),
+                          self.legal_url_info_list,
+                          )
+
+                with open(f'{datetime.now().strftime("%m-%d-%H:%M:%S")}.bringmeimage', 'wb') as f:
+                    pickle.dump(record, f)
+
+                self.legal_url_info_list.clear()
+                self.freeze_main_window(unfreeze=True)
+                self.clear_progress_bar()
+
+                self.operation_browser_insert_html(
+                    '<span style="color: cyan;">'
+                    f'{datetime.now().strftime("%H:%M:%S")} '
+                    f'[ {len(self.legal_url_info_list)} URLs ] | Save record completed'
+                    '</span>'
+                )
 
     def select_storage_folder(self, event: QMouseEvent) -> None:
         """
@@ -280,12 +321,13 @@ class MainWindow(QMainWindow):
         # hint: version_id_info = {self.version_id: nametuple(version_name, model_id, model_name, creator)}
         self.version_id_info_dict.update(version_id_info)
 
-        self.progress_bar_info_dict[task_name][2] += 1
-        downloaded_count = self.progress_bar_info_dict[task_name][1] + 1
-        self.progress_bar_info_dict[task_name][1] = downloaded_count
-        self.progress_bar_info_dict[task_name][0].setValue(downloaded_count)
+        progress_bar_info: ProgressBarInfo = self.progress_bar_info_dict[task_name]
+        progress_bar_info.executed += 1
+        downloaded_count = progress_bar_info.downloaded + 1
+        progress_bar_info.downloaded = downloaded_count
+        progress_bar_info.progress_bar_widget.setValue(downloaded_count)
 
-        if self.progress_bar_info_dict[task_name][1] == self.progress_bar_info_dict[task_name][3]:
+        if progress_bar_info.downloaded == progress_bar_info.quantity_of_all_task:
             self.ui.operation_text_browser.append(
                 f'{datetime.now().strftime("%H:%M:%S")} '
                 f'[ {len(self.legal_url_info_list)} URLs ] | '
@@ -310,23 +352,27 @@ class MainWindow(QMainWindow):
 
         self.download_failed_url_info_list.append((original_url, model_name, version_name))
         self.temp_url_info_list.append((original_url, image_params))
-        self.progress_bar_info_dict[task_name][2] += 1
+
+        progress_bar_info: ProgressBarInfo = self.progress_bar_info_dict[task_name]
+        progress_bar_info.executed += 1
 
         self.handle_download_task(task_name)
 
     def handle_download_completed_signal(self, completed_message: tuple) -> None:
         original_url, message, task_name = completed_message
 
-        self.progress_bar_info_dict[task_name][2] += 1
-        downloaded_count = self.progress_bar_info_dict[task_name][1] + 1
-        self.progress_bar_info_dict[task_name][1] = downloaded_count
-        self.progress_bar_info_dict[task_name][0].setValue(downloaded_count)
+        progress_bar_info: ProgressBarInfo = self.progress_bar_info_dict[task_name]
+        progress_bar_info.executed += 1
+        downloaded_count = progress_bar_info.downloaded + 1
+        progress_bar_info.downloaded = downloaded_count
+        progress_bar_info.progress_bar_widget.setValue(downloaded_count)
 
         self.handle_download_task(task_name)
 
-    def handle_download_task(self, task_name):
-        if self.progress_bar_info_dict[task_name][2] == self.progress_bar_info_dict[task_name][3]:
-            self.progress_bar_info_dict[task_name][0].setStyleSheet("""
+    def handle_download_task(self, task_name) -> None:
+        progress_bar_info: ProgressBarInfo = self.progress_bar_info_dict[task_name]
+        if progress_bar_info.executed == progress_bar_info.quantity_of_all_task:
+            progress_bar_info.progress_bar_widget.setStyleSheet("""
                 QProgressBar {
                     text-align: center;
                 }
@@ -342,8 +388,8 @@ class MainWindow(QMainWindow):
                 '</span>'
             )
 
-            if self.progress_bar_info_dict[task_name][1] != self.progress_bar_info_dict[task_name][3]:
-                self.progress_bar_info_dict[task_name][0].setStyleSheet("""
+            if progress_bar_info.downloaded != progress_bar_info.quantity_of_all_task:
+                progress_bar_info.progress_bar_widget.setStyleSheet("""
                     QProgressBar {
                         text-align: center;
                         color: red;
@@ -352,8 +398,10 @@ class MainWindow(QMainWindow):
                        background-color: pink; 
                     }
                 """)
-                if self.progress_bar_info_dict[task_name][1] == 0:
-                    self.progress_bar_info_dict[task_name][0].setStyleSheet("""
+                if progress_bar_info.downloaded == 0:
+                    # If the progress is 0, there won't be a visible progress bar.
+                    # Therefore, the progress bar object's background needs to be set directly.
+                    progress_bar_info.progress_bar_widget.setStyleSheet("""
                         QProgressBar {
                             text-align: center;
                             color: red;
@@ -364,7 +412,7 @@ class MainWindow(QMainWindow):
                     '<span style="color: red;">'
                     f'{datetime.now().strftime("%H:%M:%S")} '
                     f'[ {len(self.legal_url_info_list)} URLs ] | '
-                    f'But, {self.progress_bar_info_dict[task_name][2] - self.progress_bar_info_dict[task_name][1]} '
+                    f'But, {progress_bar_info.executed - progress_bar_info.downloaded} '
                     f'failed downloads for URLs. Check them at Option > Show Failed URLs'
                     f'Or click "go" to try again'
                     '</span>'
@@ -418,12 +466,14 @@ class MainWindow(QMainWindow):
         progress_layout.setStretch(0, 1)
         progress_layout.setStretch(1, 5)
 
-        # about progress_bar_info:
-        # {'Preprocessing': [ProgressBar widget, Downloaded, Executed, Quantity of all task, ProgressBar Layout], ... }
-        self.progress_bar_info_dict[task_name] = [progress_bar, 0, 0, count, progress_layout]
+        self.progress_bar_info_dict[task_name] = ProgressBarInfo(progress_layout=progress_layout,
+                                                                 progress_bar_widget=progress_bar,
+                                                                 downloaded=0,
+                                                                 executed=0,
+                                                                 quantity_of_all_task=count)
         self.ui.verticalLayout.addLayout(progress_layout)
 
-    def freeze_main_window(self, unfreeze=False):
+    def freeze_main_window(self, unfreeze=False) -> None:
         """
         Freeze all buttons and options in the main window
         :param unfreeze: set True to unfreeze all
@@ -446,7 +496,7 @@ class MainWindow(QMainWindow):
         self.ui.actionLoadClipboardFile.setEnabled(enable)
         self.ui.actionShowFailUrl.setEnabled(enable)
 
-    def operation_browser_insert_html(self, html_string: str, newline_first=True):
+    def operation_browser_insert_html(self, html_string: str, newline_first=True) -> None:
         """
         Using HTML syntax in self.ui.operation_text_browser
         :param html_string:
@@ -463,8 +513,8 @@ class MainWindow(QMainWindow):
         Clear all progress bar layout
         """
         for progress_name in self.progress_bar_task_name_list:
-            each_progres_bar_info = self.progress_bar_info_dict[progress_name]
-            layout = each_progres_bar_info[4]
+            each_progres_bar_info: ProgressBarInfo = self.progress_bar_info_dict[progress_name]
+            layout = each_progres_bar_info.progress_layout
             self.clear_layout_widgets(layout)
 
         self.progress_bar_task_name_list.clear()
@@ -502,7 +552,10 @@ class MainWindow(QMainWindow):
 
         event.accept()
 
-    def clear_threadpool(self):
+    def clear_threadpool(self) -> None:
+        """
+        Clear the global thread pool to ensure all tasks are cancelled before the application exits
+        """
         self.pool.clear()
 
 

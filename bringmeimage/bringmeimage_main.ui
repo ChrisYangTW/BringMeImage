@@ -131,6 +131,8 @@
     </property>
     <addaction name="actionLoadClipboardFile"/>
     <addaction name="actionShowFailUrl"/>
+    <addaction name="separator"/>
+    <addaction name="actionSaveTheRecord"/>
    </widget>
    <addaction name="menuOption"/>
   </widget>
@@ -152,6 +154,11 @@
   <action name="actionDownloadMode">
    <property name="text">
     <string>Download Mode</string>
+   </property>
+  </action>
+  <action name="actionSaveTheRecord">
+   <property name="text">
+    <string>Save the record</string>
    </property>
   </action>
  </widget>

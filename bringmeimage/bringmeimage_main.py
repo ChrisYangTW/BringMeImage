@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'bringmeimage_main.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.5.1
+## Created by: Qt User Interface Compiler version 6.5.3
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -32,6 +32,8 @@ class Ui_MainWindow(object):
         self.actionShowFailUrl.setObjectName(u"actionShowFailUrl")
         self.actionDownloadMode = QAction(MainWindow)
         self.actionDownloadMode.setObjectName(u"actionDownloadMode")
+        self.actionSaveTheRecord = QAction(MainWindow)
+        self.actionSaveTheRecord.setObjectName(u"actionSaveTheRecord")
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.verticalLayout = QVBoxLayout(self.centralwidget)
@@ -118,6 +120,8 @@ class Ui_MainWindow(object):
         self.menubar.addAction(self.menuOption.menuAction())
         self.menuOption.addAction(self.actionLoadClipboardFile)
         self.menuOption.addAction(self.actionShowFailUrl)
+        self.menuOption.addSeparator()
+        self.menuOption.addAction(self.actionSaveTheRecord)
 
         self.retranslateUi(MainWindow)
 
@@ -129,6 +133,7 @@ class Ui_MainWindow(object):
         self.actionLoadClipboardFile.setText(QCoreApplication.translate("MainWindow", u"Load Clipboard File", None))
         self.actionShowFailUrl.setText(QCoreApplication.translate("MainWindow", u"Show Failed URLs", None))
         self.actionDownloadMode.setText(QCoreApplication.translate("MainWindow", u"Download Mode", None))
+        self.actionSaveTheRecord.setText(QCoreApplication.translate("MainWindow", u"Save the record", None))
         self.folder_label.setText(QCoreApplication.translate("MainWindow", u"Folder", None))
 #if QT_CONFIG(tooltip)
         self.folder_line_edit.setToolTip("")

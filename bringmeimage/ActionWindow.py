@@ -76,7 +76,9 @@ if __name__ == '__main__':
 
         def show_editable_window(self):
             history_window = FailedUrlsWindow(
-                failed_urls=[('abc.com', 'M1', 'V1'), ('def.com', 'M1', 'V1'), ('ghi.com', 'M2', 'V1')],
+                failed_urls=[('abc.com', 'M1', 'V1'), ('def.com', 'M1', 'V1'),
+                             ('ghi.com', 'M1', 'V2'), ('jkl.com', 'M1', 'V2'),
+                             ('mno.com', 'M2', 'V1')],
                 parent=self)
             history_window.setWindowModality(Qt.ApplicationModal)
             history_window.show()

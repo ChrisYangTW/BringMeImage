@@ -15,13 +15,15 @@ class ParserRunner(QRunnable):
     Get the version info:
     {version_id: nametuple(version_name, model_id, model_name, creator)}
     """
-    def __init__(self, httpx_client: httpx.Client, version_id: str):
+    def __init__(self, httpx_client: httpx.Client, version_id: str,
+                 civitai_model_api_url: str = '',
+                 civitai_version_api_url: str = ''):
         super().__init__()
         self.httpx_client = httpx_client
         self.version_id = version_id
 
-        self.civitai_model_api_url = 'https://civitai.com/api/v1/models/'
-        self.civitai_version_api_url = 'https://civitai.com/api/v1/model-versions/'
+        self.civitai_model_api_url = civitai_model_api_url or 'https://civitai.com/api/v1/models/'
+        self.civitai_version_api_url = civitai_version_api_url or 'https://civitai.com/api/v1/model-versions/'
 
         self.signals = ParserRunnerSignals()
         self.version_info = namedtuple('version_info', 'version_name, model_id, model_name, creator')
@@ -56,7 +58,8 @@ class DownloadRunnerSignals(QObject):
 
 class DownloadRunner(QRunnable):
     def __init__(self, httpx_client: httpx.Client, image_info: tuple, save_dir: Path,
-                 categorize: bool, version_id_info_dict: dict | None):
+                 categorize: bool, version_id_info_dict: dict | None,
+                 civitai_image_api_url: str = ''):
         super().__init__()
         self.httpx_client = httpx_client
         # hint: image_info = (url_text, (modelVersionId, postId, imageId))
@@ -67,7 +70,7 @@ class DownloadRunner(QRunnable):
         self.model_name = ''
         self.version_name = ''
 
-        self.civitai_image_api_url = 'https://civitai.com/api/v1/images'
+        self.civitai_image_api_url = civitai_image_api_url or 'https://civitai.com/api/v1/images'
         self.signals = DownloadRunnerSignals()
 
     @Slot()
