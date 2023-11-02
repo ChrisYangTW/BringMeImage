@@ -1,6 +1,7 @@
 # Warning
 ```diff
-- Due to the changes in the image URL rules on civitai.com, the current project is unable to perform targeted parsing.
+- Due to the changes in the image URL rules on civitai.com,
+- the current project is unable to perform targeted parsing.
 
 (November 2, 2023)
 ```
