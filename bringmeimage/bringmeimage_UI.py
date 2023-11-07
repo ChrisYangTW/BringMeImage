@@ -78,7 +78,7 @@ class Ui_MainWindow(object):
 
         self.categorize_check_box = QCheckBox(self.centralwidget)
         self.categorize_check_box.setObjectName(u"categorize_check_box")
-        self.categorize_check_box.setChecked(True)
+        self.categorize_check_box.setChecked(False)
 
         self.horizontalLayout_2.addWidget(self.categorize_check_box)
 

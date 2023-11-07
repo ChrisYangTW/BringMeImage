@@ -1,13 +1,9 @@
 # QDialog window for copying URLs that match the parsing rules.
 # Supported formats:
 #     for civitai.com:
-#         "https://civitai.com/images/(\d+)\?.*&modelVersionId=(\d+)&modelId=\d+&postId=(\d+)"
-#         "https://civitai.com/images/(\d+)\?modelVersionId=(\d+)&prioritizedUserIds=\d+&period=.*&sort=.*&limit=.*"
-#         "https://civitai.com/images/(\d+)\?postId=(\d+)"
+#         "https://civitai.com/images/(\d+)"
 #     for general picture file:
 #         ".+\.(png|jpeg|jpg)$"
-
-
 import re
 
 from PySide6.QtCore import Signal, Qt, QTimer
@@ -15,43 +11,39 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QPushButton, QWidget, QSizePolicy,
                                QMessageBox, QLabel)
 
+from bringmeimage.BringMeImageData import ImageData
+from bringmeimage.LoggerConf import get_logger
+logger = get_logger(__name__)
+
 
 class StartClipWindow(QDialog):
     """
     QDialog window for starting to clip and parsing URLs
     """
-    Start_Clip_Closed_Window_Signal = Signal(list)
+    Start_Clip_Close_Window_Signal = Signal(dict)
 
-    def __init__(self, for_civitai: bool, legal_url_info_list: list, parent=None):
+    def __init__(self, for_civitai: bool, legal_url_dict: dict, parent=None):
         super().__init__(parent)
         self.for_civitai = for_civitai
-        self.legal_url_info_list = legal_url_info_list
+        self.legal_url_dict = legal_url_dict
         self.initUI()
+
         # Dialog always stay on
+        # In some cases, changing the window flags may not immediately update the window's visibility.
+        # Calling self.show() ensures that the window is shown again, taking into account any changes made to the flags
         self.setWindowFlag(Qt.WindowStaysOnTopHint)
-        #  In some cases, changing the window flags may not immediately update the window's visibility.
-        #  Calling self.show() ensures that the window is shown again, taking into account any changes made to the flags
         self.show()
 
         self.clipboard_text_list = []
         self.isStarted = False
 
-        # r'/(\d+)\?(?:(?=[^?]*modelVersionId=(\d+)))?(?:(?=[^?]*modelId=(\d+)))?(?:(?=[^?]*postId=(\d+)))?')
-        self.for_civitai_pattern_1 = re.compile(
-            r"https://civitai.com/images/(?P<imageId>\d+)"
-            r"\?.*&modelVersionId=(?P<modelVersionId>\d+)&modelId=\d+&postId=(?P<postId>\d+)")
-        self.for_civitai_pattern_2 = re.compile(
-            r"https://civitai.com/images/(?P<imageId>\d+)"
-            r"\?modelVersionId=(?P<modelVersionId>\d+)&prioritizedUserIds=\d+&period=.*&sort=.*&limit=.*")
-        self.for_civitai_pattern_3 = re.compile(
-            r"https://civitai.com/images/(?P<imageId>\d+)"
-            r"\?postId=(?P<postId>\d+)")
+        self.for_civitai_pattern = re.compile(r"https://civitai.com/images/(?P<imageId>\d+)")
         self.normal_pattern = re.compile(r".+\.(png|jpeg|jpg)$")
 
         self.clipboard = QApplication.clipboard()
         self.timer_for_update_clipboard = QTimer()
         self.timer_for_update_clipboard.timeout.connect(self.update_clipboard)
-        self.start_clip_button.clicked.connect(self.start_clip)
+        self.start_clip_button.clicked.connect(self.start_or_stop_clip)
         self.finish_clip_button.clicked.connect(self.finish_clip)
 
     def initUI(self):
@@ -67,7 +59,7 @@ class StartClipWindow(QDialog):
         self.start_clip_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.v_layout.addWidget(self.start_clip_button)
 
-        self.count_label = QLabel(f'Clip: {len(self.legal_url_info_list)}')
+        self.count_label = QLabel(f'Clip: {len(self.legal_url_dict)}')
         font = QFont()
         font.setPointSize(18)
         self.count_label.setFont(font)
@@ -94,14 +86,14 @@ class StartClipWindow(QDialog):
     # Overrides the reject() to allow users to cancel the dialog using the ESC key
     def reject(self, called_by_finished_button=False) -> None:
         """
-        If self.legal_url_info_list is not empty, ask the user before closing the window
-        :param called_by_finished_button: set True for emitting a signal (self.legal_url_info_list)
+        If self.legal_url_dict is not empty, ask the user before closing the window
+        :param called_by_finished_button: set True for emitting a signal (self.legal_url_dict)
         :return:
         """
         if self.isStarted:
             return
 
-        if not called_by_finished_button and self.legal_url_info_list:
+        if not called_by_finished_button and self.legal_url_dict:
             reply = QMessageBox.question(self, 'Warning',
                                          'There are existing records. Are you sure you want to close the window?',
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
@@ -110,10 +102,14 @@ class StartClipWindow(QDialog):
             self.done(0)
             return
 
-        self.Start_Clip_Closed_Window_Signal.emit(self.legal_url_info_list)
+        self.Start_Clip_Close_Window_Signal.emit(self.legal_url_dict)
         self.done(0)
 
-    def start_clip(self) -> None:
+    def start_or_stop_clip(self) -> None:
+        """
+        Set up the clip button. Once activated, read the contents of the clipboard at intervals of 1000ms.
+        :return: None
+        """
         if self.isStarted:
             self.isStarted = False
             self.start_clip_button.setText('Start')
@@ -127,43 +123,51 @@ class StartClipWindow(QDialog):
             self.timer_for_update_clipboard.start(1000)
 
     def finish_clip(self) -> None:
+        """
+        Set up the finish button.
+        :return:
+        """
         self.reject(called_by_finished_button=True)
 
     def update_clipboard(self) -> None:
-        mime_data = self.clipboard.mimeData()
-
-        if mime_data.hasText():
-            url_text = mime_data.text()
-            if url_text not in self.clipboard_text_list:
-                self.clipboard_text_list.append(url_text)
-                if url_info := self.initial_parse(url_text):
-                    self.legal_url_info_list.append(url_info)
-                    self.count_label.setText(f'Clip: {len(self.legal_url_info_list)}')
-
-    def initial_parse(self, url_text: str) -> tuple | None:
         """
-        if url_text is legal, return (url_text, (modelVersionId, postId, imageId))
-        :param url_text:
+        Read the contents of the clipboard and parse them.
+        The content will be recorded in self.clipboard_text_list to avoid duplicate processing.
         :return:
         """
-        url_info = ''
-        if self.for_civitai:
-            if match := self.for_civitai_pattern_1.match(url_text):
-                url_info = url_text, (match.group('modelVersionId'), match.group('postId'), match.group('imageId'))
-            elif match := self.for_civitai_pattern_2.match(url_text):
-                url_info = url_text, (match.group('modelVersionId'), None, match.group('imageId'))
-            elif match := self.for_civitai_pattern_3.match(url_text):
-                url_info = url_text, (None, match.group('postId'), match.group('imageId'))
-        elif match := self.normal_pattern.match(url_text):
-            url_info = url_text, None
+        mime_data = self.clipboard.mimeData()
+        if mime_data.hasText():
+            url_text = mime_data.text()
+            if url_text in self.clipboard_text_list:
+                logger.info(f'URL already processed: {url_text}')
+            else:
+                self.clipboard_text_list.append(url_text)
+                if url_data := self.initial_parse(url_text):
+                    self.legal_url_dict.update({url_text: url_data})
+                    self.count_label.setText(f'Clip: {len(self.legal_url_dict)}')
 
-        if url_info:
-            if url_info not in self.legal_url_info_list:
-                return url_info
-            print('\033[33m' + f'URL already exists in the legal list: {url_text}' + '\033[0m')
+            self.clipboard.clear()
+
+    def initial_parse(self, url_text: str) -> ImageData | None:
+        """
+        If url_text is legal, return a ImageData object
+        :param url_text: the URL obtained from the clipboard
+        :return:
+        """
+        url_data = None
+        if self.for_civitai:
+            if match := self.for_civitai_pattern.match(url_text):
+                url_data = ImageData(url=url_text, imageId=match.group('imageId'))
+        elif _ := self.normal_pattern.match(url_text):
+            url_data = ImageData(url=url_text, real_url=url_text, is_parsed=True)
+
+        if url_data:
+            if url_text not in self.legal_url_dict:
+                return url_data
+            logger.info(f'URL already exists in the legal list: {url_text}')
             return
 
-        print('\033[33m' + f'URL cannot parse: {url_text}' + '\033[0m')
+        logger.info(f'URL cannot parse: {url_text}')
 
 
 if __name__ == '__main__':
@@ -192,18 +196,18 @@ if __name__ == '__main__':
 
         def show_window(self, window_type: int):
             if window_type == 1:
-                start_clip_window = StartClipWindow(for_civitai=True, legal_url_info_list=[], parent=self)
+                start_clip_window = StartClipWindow(for_civitai=True, legal_url_dict={}, parent=self)
             else:
-                start_clip_window = StartClipWindow(for_civitai=False, legal_url_info_list=[], parent=self)
+                start_clip_window = StartClipWindow(for_civitai=False, legal_url_dict={}, parent=self)
 
-            start_clip_window.Start_Clip_Closed_Window_Signal.connect(self.handle_clip_closed_window_signal)
+            start_clip_window.Start_Clip_Close_Window_Signal.connect(self.handle_clip_closed_window_signal)
             start_clip_window.setWindowModality(Qt.ApplicationModal)
             start_clip_window.show()
 
         @staticmethod
-        def handle_clip_closed_window_signal(info: list):
-            for info in info:
-                print(info)
+        def handle_clip_closed_window_signal(image_info_dict: dict):
+            for image_url, image_data in image_info_dict.items():
+                print(image_url, image_data)
 
 
     app = QApplication([])

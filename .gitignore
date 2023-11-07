@@ -125,6 +125,7 @@ celerybeat.pid
 .venv
 env/
 venv/
+venv(3_12)/
 ENV/
 env.bak/
 venv.bak/
@@ -164,3 +165,5 @@ try_code/
 example/
 *.bringmeimage
 .DS_Store/
+requirements(backup20231103).txt
+.sourcery.yaml

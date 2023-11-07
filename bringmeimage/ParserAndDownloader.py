@@ -1,16 +1,86 @@
 from pathlib import Path
-from collections import namedtuple
+import re
 
 import httpx
 from PySide6.QtCore import QObject, Signal, QRunnable, Slot
+from selenium import webdriver
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import TimeoutException
+
+from bringmeimage.BringMeImageData import ImageData, VersionIdData
 
 
-class ParserRunnerSignals(QObject):
-    Parser_Connect_To_API_Failed_Signal = Signal(tuple)
-    Parser_Completed_Signal = Signal(tuple)
+class ImageUrlParserSignal(QObject):
+    ImageUrlParser_Processed_Signal = Signal()
+    ImageUrlParser_Completed_Signal = Signal(tuple)
 
 
-class ParserRunner(QRunnable):
+class ImageUrlParserRunner(QRunnable):
+    def __init__(self, legal_url_dict: dict):
+        super().__init__()
+        self.legal_url_dict = legal_url_dict
+        self.legal_url_parse_completed_dict = {}
+        self.legal_url_parse_failed_dict = {}
+        self.re_parser = re.compile(r'/models/(?P<modelId>\d+)/.*modelVersionId=(?P<modelVersionId>\d+)')
+        self.images_info = []
+        self.signals = ImageUrlParserSignal()
+
+        options = webdriver.FirefoxOptions()
+        options.add_argument('--headless')
+        self.webdriver = webdriver.Firefox(options=options)
+
+    @Slot()
+    def run(self) -> None:
+        self.get_image_info()
+
+    def get_image_info(self):
+        script = """
+        let imgElement = document.querySelector('.mantine-1ynvwjz img');
+        let aElement = document.querySelector('.mantine-1snf94l a');
+        if (imgElement && aElement) {
+            var imgSrc = imgElement.getAttribute('src');
+            var aHref = aElement.getAttribute('href');
+            return [imgSrc, aHref];
+        } else {
+            return null;
+        }
+        """
+        for image_url in self.legal_url_dict:
+            if self.legal_url_dict[image_url].is_parsed:
+                self.legal_url_parse_completed_dict[image_url] = self.legal_url_dict[image_url]
+                self.signals.ImageUrlParser_Processed_Signal.emit()
+                continue
+
+            try:
+                self.webdriver.get(image_url)
+                wait = WebDriverWait(self.webdriver, 10)
+                if result := wait.until(lambda driver: self.webdriver.execute_script(script)):
+                    real_url, model_version_href = result
+                    match = self.re_parser.match(model_version_href)
+                    image_data = self.legal_url_dict[image_url]
+                    image_data.real_url = real_url
+                    image_data.modelVersionId = match.group('modelVersionId')
+                    image_data.is_parsed = True
+                    self.legal_url_parse_completed_dict[image_url] = image_data
+                else:
+                    self.legal_url_parse_failed_dict[image_url] = self.legal_url_dict[image_url]
+            except TimeoutException as e:
+                self.legal_url_parse_failed_dict[image_url] = self.legal_url_dict[image_url]
+            finally:
+                self.signals.ImageUrlParser_Processed_Signal.emit()
+
+        self.webdriver.quit()
+        self.signals.ImageUrlParser_Completed_Signal.emit(
+            (self.legal_url_parse_completed_dict, self.legal_url_parse_failed_dict)
+        )
+
+
+class VersionIdParserRunnerSignals(QObject):
+    VersionIdParser_Failed_Signal = Signal()
+    VersionIdParser_Completed_Signal = Signal(dict)
+
+
+class VersionIdParserRunner(QRunnable):
     """
     Get the version info:
     {version_id: nametuple(version_name, model_id, model_name, creator)}
@@ -25,8 +95,7 @@ class ParserRunner(QRunnable):
         self.civitai_model_api_url = civitai_model_api_url or 'https://civitai.com/api/v1/models/'
         self.civitai_version_api_url = civitai_version_api_url or 'https://civitai.com/api/v1/model-versions/'
 
-        self.signals = ParserRunnerSignals()
-        self.version_info = namedtuple('version_info', 'version_name, model_id, model_name, creator')
+        self.signals = VersionIdParserRunnerSignals()
 
     @Slot()
     def run(self) -> None:
@@ -45,96 +114,58 @@ class ParserRunner(QRunnable):
             # assert model_name == version_data['model']['name']
             creator = model_date['creator']['username']
 
-            version_id_info = {self.version_id: self.version_info(version_name, model_id, model_name, creator)}
-            self.signals.Parser_Completed_Signal.emit((version_id_info, 'Preprocessing'))
+            version_id_info = {self.version_id: VersionIdData(version_name, model_id, model_name, creator)}
+            self.signals.VersionIdParser_Completed_Signal.emit(version_id_info)
         except Exception as e:
-            self.signals.Parser_Connect_To_API_Failed_Signal.emit((f'versionId:{self.version_id}, {e}', 'Preprocessing'))
+            self.signals.VersionIdParser_Failed_Signal.emit()
 
 
 class DownloadRunnerSignals(QObject):
-    download_failed_signal = Signal(tuple)
-    download_completed_signal = Signal(tuple)
+    download_failed_signal = Signal(ImageData)
+    download_completed_signal = Signal()
 
 
 class DownloadRunner(QRunnable):
-    def __init__(self, httpx_client: httpx.Client, image_info: tuple, save_dir: Path,
-                 categorize: bool, version_id_info_dict: dict | None,
-                 civitai_image_api_url: str = ''):
+    def __init__(self, httpx_client: httpx.Client, image_data: ImageData, save_dir: Path,
+                 categorize: bool, version_id_info_dict: dict):
         super().__init__()
         self.httpx_client = httpx_client
-        # hint: image_info = (url_text, (modelVersionId, postId, imageId))
-        self.image_original_url, self.image_params = image_info
+
+        self.image_data = image_data
         self.save_dir = save_dir
         self.categorize = categorize
         self.version_id_info_dict = version_id_info_dict
         self.model_name = ''
         self.version_name = ''
 
-        self.civitai_image_api_url = civitai_image_api_url or 'https://civitai.com/api/v1/images'
         self.signals = DownloadRunnerSignals()
 
     @Slot()
     def run(self) -> None:
         self.save_dir = self.get_save_path()
-        url = self.get_real_image_url() if self.image_params else self.image_original_url
-        self.download_image(url)
+        self.download_image()
 
     def get_save_path(self) -> Path:
-        if not self.image_params or not self.categorize:
+        if not self.categorize:
             return self.save_dir
 
-        modelVersionId = self.image_params[0]
-        if not modelVersionId:
-            return self.save_dir / 'CIVIT_POST_Images'
-
         # Have to handle the model name like 'Skirt tug / dress tug / clothes tug'
-        # hint: version_id_info_dict = {version_id1: nametuple(version_name, model_id, model_name, creator), ...}
+        # hint: version_id_info_dict = {version_id: dataclass(version_name, model_id, model_name, creator), ...}
+        modelVersionId = self.image_data.modelVersionId
         self.model_name = self.version_id_info_dict[modelVersionId].model_name.replace('/', '_').replace('\\', '_')
         self.version_name = self.version_id_info_dict[modelVersionId].version_name.replace('/', '_').replace('\\', '_')
         return self.save_dir / self.model_name / self.version_name / 'gallery'
 
-    def get_real_image_url(self) -> str:
-        modelVersionId, postId, imageId= self.image_params
-
-        try:
-            if not modelVersionId:
-                params = {'postId': postId}
-            elif postId:
-                params = {'modelVersionId': modelVersionId,
-                          'postId': postId}
-            else:
-                username = self.version_id_info_dict[modelVersionId].creator
-                params = {'modelVersionId': modelVersionId,
-                          'username': username}
-
-            r = self.httpx_client.get(self.civitai_image_api_url, params=params)
-            data = r.json()['items']
-            if real_url := next((image['url'] for image in data if image['id'] == int(imageId)), ''):
-                return real_url
-        except Exception as e:
-            print(e, f'raise Exception: get_real_image_url(), {r.url=}')
-            return ''
-
-    def download_image(self, url: str) -> None:
-        if not url:
-            self.signals.download_failed_signal.emit(
-                (self.image_original_url,
-                 self.model_name,
-                 self.version_name,
-                 'Fail to get a real url for API',
-                 'Downloading',
-                 self.image_params)
-            )
-            return
-
+    def download_image(self) -> None:
         self.save_dir.mkdir(parents=True, exist_ok=True)
-        save_path = self.save_dir / Path(url.rsplit('/', 1)[-1])
+        real_url = self.image_data.real_url
+        save_path = self.save_dir / Path(real_url.rsplit('/', 1)[-1])
         if save_path.exists():
             new_name = f'{save_path.stem}(repeat){save_path.suffix}'
             save_path = save_path.with_name(new_name)
 
         try:
-            r = self.httpx_client.get(url)
+            r = self.httpx_client.get(real_url)
             r.raise_for_status()
 
             with open(save_path, 'wb') as f:
@@ -142,13 +173,14 @@ class DownloadRunner(QRunnable):
                     if date:
                         f.write(date)
 
-            self.signals.download_completed_signal.emit((f'{self.image_original_url}', 'Download success', 'Downloading'))
+            self.signals.download_completed_signal.emit()
         except Exception as e:
-            self.signals.download_failed_signal.emit(
-                (self.image_original_url,
-                 self.model_name,
-                 self.version_name,
-                 'Download failed',
-                 'Downloading',
-                 self.image_params)
-            )
+            self.signals.download_failed_signal.emit(self.image_data)
+
+
+if __name__ == '__main__':
+    test_image_dict = {'https://civitai.com/images/2940879': ImageData(url='https://civitai.com/images/2940879', imageId='2940879'),
+                       'https://civitai.com/images/3222147': ImageData(url='https://civitai.com/images/3222147', imageId='3222147'),
+                       }
+    runner = ImageUrlParserRunner(legal_url_dict=test_image_dict)
+    runner.run()
