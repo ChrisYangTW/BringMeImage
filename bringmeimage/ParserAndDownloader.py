@@ -8,6 +8,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 
 from bringmeimage.BringMeImageData import ImageData, VersionIdData
+from bringmeimage.LoggerConf import get_logger
+logger = get_logger(__name__)
 
 
 class ImageUrlParserSignal(QObject):
@@ -33,7 +35,7 @@ class ImageUrlParserRunner(QRunnable):
     def run(self) -> None:
         self.get_image_info()
 
-    def get_image_info(self):
+    def get_image_info(self) -> None:
         script = """
         let imgElement = document.querySelector('.mantine-1ynvwjz img');
         let aElement = document.querySelector('.mantine-1snf94l a');
@@ -64,8 +66,9 @@ class ImageUrlParserRunner(QRunnable):
                     self.legal_url_parse_completed_dict[image_url] = image_data
                 else:
                     self.legal_url_parse_failed_dict[image_url] = self.legal_url_dict[image_url]
-            except TimeoutException as e:
+            except TimeoutException:
                 self.legal_url_parse_failed_dict[image_url] = self.legal_url_dict[image_url]
+                logger.info(f'ImageUrlParser timeout: {image_url}')
             finally:
                 self.signals.ImageUrlParser_Processed_Signal.emit()
 
@@ -118,6 +121,7 @@ class VersionIdParserRunner(QRunnable):
             self.signals.VersionIdParser_Completed_Signal.emit(version_id_info)
         except Exception as e:
             self.signals.VersionIdParser_Failed_Signal.emit()
+            logger.info(f'VersionIdParser exception{e}: version_id({self.version_id})')
 
 
 class DownloadRunnerSignals(QObject):
@@ -176,6 +180,7 @@ class DownloadRunner(QRunnable):
             self.signals.download_completed_signal.emit()
         except Exception as e:
             self.signals.download_failed_signal.emit(self.image_data)
+            logger.info(f'Download exception{e}: real image url {real_url}')
 
 
 if __name__ == '__main__':
