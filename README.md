@@ -1,7 +1,10 @@
 # Bring Me Image (experimental)
 
-In the Gallery section of each model page on civitai.com, there are many images uploaded by regular users. If you often need to click on individual images and use the right-click to download them one by one, this project might be helpful for you.  
-"Currently, it can only be used for images that are viewable without logging in (meaning it cannot access more restricted images)."
+In the Gallery section of each model page on civitai.com, there are many images uploaded by regular users. If you often need to click on individual images and use the right-click to download them one by one, this project might be helpful for you. 
+```diff
+-"Currently, it can only be used for images that are viewable without logging in.
+-(meaning it cannot access more restricted images)."
+```
 
 ![sample1](examples/sample1_v0_1_0.png)
 
