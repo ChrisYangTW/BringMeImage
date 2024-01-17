@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 import httpx
+from selenium import webdriver
 from PySide6.QtCore import Qt, QThreadPool
 from PySide6.QtGui import QTextCharFormat, QMouseEvent
 from PySide6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QHBoxLayout, QLabel, QProgressBar
@@ -32,6 +33,11 @@ class MainWindow(QMainWindow):
 
         self.pool = QThreadPool.globalInstance()
         self.httpx_client = httpx.Client()
+
+        options = webdriver.ChromeOptions()
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        self.webdriver = webdriver.Chrome(options=options)
+        self.webdriver.get("https://civitai.com/")
 
         self.save_dir = None
         self.legal_url_dict = {}
@@ -290,7 +296,7 @@ class MainWindow(QMainWindow):
         )
         self.add_progress_bar(task_name='Browsing', count=len(self.legal_url_dict))
 
-        parser = ImageUrlParserRunner(legal_url_dict=self.legal_url_dict)
+        parser = ImageUrlParserRunner(legal_url_dict=self.legal_url_dict, test_driver=self.webdriver)
         parser.signals.ImageUrlParser_Processed_Signal.connect(self.handle_ImageUrlParser_process_signal)
         parser.signals.ImageUrlParser_Completed_Signal.connect(self.handle_ImageUrlParser_completed_signal)
         self.pool.start(parser)
@@ -606,8 +612,9 @@ class MainWindow(QMainWindow):
 
         event.accept()
 
-    def clear_threadpool(self) -> None:
+    def clear_threadpool_and_close_browser(self) -> None:
         """
         Clear the global thread pool to ensure all tasks are cancelled before the application exits
         """
         self.pool.clear()
+        self.webdriver.quit()

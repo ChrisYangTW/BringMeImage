@@ -18,7 +18,7 @@ class ImageUrlParserSignal(QObject):
 
 
 class ImageUrlParserRunner(QRunnable):
-    def __init__(self, legal_url_dict: dict):
+    def __init__(self, legal_url_dict: dict, test_driver: webdriver):
         super().__init__()
         self.legal_url_dict = legal_url_dict
         self.legal_url_parse_completed_dict = {}
@@ -27,9 +27,7 @@ class ImageUrlParserRunner(QRunnable):
         self.images_info = []
         self.signals = ImageUrlParserSignal()
 
-        options = webdriver.FirefoxOptions()
-        options.add_argument('--headless')
-        self.webdriver = webdriver.Firefox(options=options)
+        self.webdriver = test_driver
 
     @Slot()
     def run(self) -> None:
@@ -121,7 +119,7 @@ class VersionIdParserRunner(QRunnable):
             self.signals.VersionIdParser_Completed_Signal.emit(version_id_info)
         except Exception as e:
             self.signals.VersionIdParser_Failed_Signal.emit()
-            logger.info(f'VersionIdParser exception{e}: version_id({self.version_id})')
+            logger.info(f'VersionIdParser exception: {e}: version_id({self.version_id})')
 
 
 class DownloadRunnerSignals(QObject):
@@ -181,11 +179,3 @@ class DownloadRunner(QRunnable):
         except Exception as e:
             self.signals.download_failed_signal.emit(self.image_data)
             logger.info(f'Download exception{e}: real image url {real_url}')
-
-
-if __name__ == '__main__':
-    test_image_dict = {'https://civitai.com/images/2940879': ImageData(url='https://civitai.com/images/2940879', imageId='2940879'),
-                       'https://civitai.com/images/3222147': ImageData(url='https://civitai.com/images/3222147', imageId='3222147'),
-                       }
-    runner = ImageUrlParserRunner(legal_url_dict=test_image_dict)
-    runner.run()

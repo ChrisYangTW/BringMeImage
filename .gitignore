@@ -165,4 +165,6 @@ try_code/
 example/
 *.bringmeimage
 .DS_Store/
-requirements(backup20231103).txt
+
+poetry.lock
+pyproject.toml
