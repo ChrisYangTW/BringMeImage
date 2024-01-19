@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'bringmeimage_main.ui'
+## Form generated from reading UI file 'bringmeimage_UI.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.5.3
+## Created by: Qt User Interface Compiler version 6.6.1
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -82,6 +82,11 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_2.addWidget(self.categorize_check_box)
 
+        self.login_check_box = QCheckBox(self.centralwidget)
+        self.login_check_box.setObjectName(u"login_check_box")
+
+        self.horizontalLayout_2.addWidget(self.login_check_box)
+
         self.clear_push_button = QPushButton(self.centralwidget)
         self.clear_push_button.setObjectName(u"clear_push_button")
 
@@ -92,6 +97,7 @@ class Ui_MainWindow(object):
         self.horizontalLayout_2.setStretch(2, 1)
         self.horizontalLayout_2.setStretch(3, 1)
         self.horizontalLayout_2.setStretch(4, 1)
+        self.horizontalLayout_2.setStretch(5, 1)
 
         self.verticalLayout.addLayout(self.horizontalLayout_2)
 
@@ -155,6 +161,7 @@ class Ui_MainWindow(object):
         self.categorize_check_box.setToolTip(QCoreApplication.translate("MainWindow", u"Automatically categorizing the path for storing images (with \"CivitAI\" checkbox selected)", None))
 #endif // QT_CONFIG(tooltip)
         self.categorize_check_box.setText(QCoreApplication.translate("MainWindow", u"Categorize", None))
+        self.login_check_box.setText(QCoreApplication.translate("MainWindow", u"Login", None))
 #if QT_CONFIG(tooltip)
         self.clear_push_button.setToolTip(QCoreApplication.translate("MainWindow", u"Clear all record list and initialize the program", None))
 #endif // QT_CONFIG(tooltip)

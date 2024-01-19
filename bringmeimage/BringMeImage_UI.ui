@@ -46,7 +46,7 @@
      </layout>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="4,4,1,1,1">
+     <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="4,4,1,1,1,1">
       <item>
        <widget class="QPushButton" name="clip_push_button">
         <property name="toolTip">
@@ -94,6 +94,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QCheckBox" name="login_check_box">
+        <property name="text">
+         <string>Login</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="clear_push_button">
         <property name="toolTip">
          <string>Clear all record list and initialize the program</string>
@@ -122,7 +129,7 @@
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>24</height>
+     <height>37</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuOption">

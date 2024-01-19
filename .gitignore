@@ -163,8 +163,10 @@ cython_debug/
 
 try_code/
 example/
+DownloadTemp/
 *.bringmeimage
 .DS_Store/
+bringmeimage/cookie/
 
 poetry.lock
 pyproject.toml
