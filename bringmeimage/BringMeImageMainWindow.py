@@ -1,3 +1,4 @@
+import contextlib
 import pickle
 from dataclasses import dataclass
 from datetime import datetime
@@ -5,12 +6,14 @@ from pathlib import Path
 
 import httpx
 from selenium import webdriver
-from PySide6.QtCore import Qt, QThreadPool
+from selenium.webdriver.chrome.webdriver import WebDriver
+from PySide6.QtCore import Qt, QThreadPool, QEvent, Signal, Slot
 from PySide6.QtGui import QTextCharFormat, QMouseEvent
 from PySide6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QHBoxLayout, QLabel, QProgressBar, QApplication
 
 from bringmeimage.BringMeImage_UI import Ui_MainWindow
 from bringmeimage.StartClipWindow import StartClipWindow
+from bringmeimage.LoginWindow import LoginWindow
 from bringmeimage.ActionWindow import FailedUrlsWindow
 from bringmeimage.ParserAndDownloader import ImageUrlParserRunner, VersionIdParserRunner, DownloadRunner
 from bringmeimage.BringMeImageData import ImageData
@@ -29,6 +32,8 @@ class ProgressBarData:
 
 
 class MainWindow(QMainWindow):
+    Handle_Manual_Login_OK_Signal = Signal()
+
     def __init__(self):
         super(MainWindow, self).__init__()
         self.ui = Ui_MainWindow()
@@ -36,8 +41,9 @@ class MainWindow(QMainWindow):
 
         self.pool = QThreadPool.globalInstance()
         self.httpx_client = httpx.Client()
-        self.driver = None
-        self.driver_for_civitai = None
+        self.driver: WebDriver | None = None
+        self.driver_temp: WebDriver | None = None
+        self.driver_for_civitai: WebDriver | None = None
 
         self.save_dir: Path = Path(__file__).parent.parent / 'DownloadTemp'
         if not self.save_dir.exists():
@@ -56,7 +62,8 @@ class MainWindow(QMainWindow):
         self.ui.folder_line_edit.mousePressEvent = self.select_storage_folder
         self.ui.civitai_check_box.clicked.connect(self.click_civitai_check_box)
         self.ui.categorize_check_box.clicked.connect(self.click_categorize_check_box)
-        self.ui.login_check_box.clicked.connect(self.click_login_check_box)
+        self.ui.login_label.setStyleSheet('color: red;')
+        self.ui.login_label.mousePressEvent = self.click_login_label
         self.ui.clear_push_button.clicked.connect(self.click_clear_push_button)
         self.ui.clip_push_button.clicked.connect(self.start_clip_process)
         self.ui.go_push_button.clicked.connect(self.click_go_push_button)
@@ -190,61 +197,92 @@ class MainWindow(QMainWindow):
         if checked and not self.ui.civitai_check_box.isChecked():
             self.ui.categorize_check_box.setChecked(False)
 
-    def click_login_check_box(self, checked: bool) -> None:
-        if checked:
-            self.driver_for_civitai = self.driver_for_civitai or self.setup_web_browser(for_civitai=True)
-        else:
-            self.driver = self.driver or self.setup_web_browser()
+    def click_login_label(self, event=None) -> None:
+        if event.button() == Qt.LeftButton and event.type() == QEvent.MouseButtonDblClick:
+            if not self.driver_for_civitai:
+                self.operation_browser_insert_html(
+                    '<span style="color: pink;">'
+                    'Wait for set up the browser ... '
+                    '</span>'
+                )
+                QApplication.processEvents()
+                self.driver_for_civitai = self.get_web_browser(for_civitai=True)
+            else:
+                self.operation_browser_insert_html(
+                    '<span style="color: green;">'
+                    'the browser is already connected'
+                    '</span>'
+                )
 
-    def setup_web_browser(self, for_civitai: bool = False):
+    def get_web_browser(self, for_civitai: bool = False):
+        QApplication.processEvents()
         self.freeze_main_window()
-        self.operation_browser_insert_html(
-            '<span style="color: pink;">'
-            'Wait for setup the browser'
-            '</span>'
-        )
-        QApplication.processEvents()
-        QApplication.processEvents()
-        QApplication.processEvents()
 
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--disable-blink-features=AutomationControlled')
         driver = webdriver.Chrome(options=options)
         if for_civitai:
-            driver.get("https://civitai.com/")
-            with Cookie_File.open('rb') as f:
-                cookies = pickle.load(f)
-            for cookie in cookies:
-                try:
-                    if cookie['name'] == '__Host-next-auth.csrf-token':
-                        continue
-                    driver.add_cookie(cookie)
-                except Exception as e:
-                    print(e)
-            driver.get('https://civitai.com/models')
-            self.operation_browser_insert_html(
-                '<span style="color: pink;">'
-                'Get a browser for civitai'
-                '</span>'
-            )
-            self.operation_browser_insert_html(
-                '<span style="color: pink;">'
-                'renew cookies'
-                '</span>'
-            )
-            cookies = driver.get_cookies()
-            with Cookie_File.open('wb') as f:
-                pickle.dump(cookies, f)
-        else:
-            self.operation_browser_insert_html(
-                '<span style="color: pink;">'
-                'Get a browser'
-                '</span>'
-            )
+            driver = self.set_the_browser_for_civitai(driver)
+            if not driver:
+                login_window = LoginWindow(parent=self)
+                login_window.Login_Window_Start_Signal.connect(self.handle_login_window_start_signal)
+                login_window.Login_Window_Finish_Signal.connect(self.handle_login_window_finish_signal)
+                login_window.Login_Window_Close_Signal.connect(self.handle_login_window_close_signal)
+                login_window.Login_Window_Reject_Signal.connect(self.handle_login_window_reject_signal)
+                self.Handle_Manual_Login_OK_Signal.connect(login_window.handle_login_ok)
+                login_window.setWindowModality(Qt.ApplicationModal)
+                login_window.show()
 
         self.freeze_main_window(unfreeze=True)
         return driver
+
+    def set_the_browser_for_civitai(self, driver: WebDriver) -> WebDriver | None:
+        check_url = r'https://civitai.com/models/10364/innies-better-vulva'
+        driver.get("https://civitai.com/")
+
+        with contextlib.suppress(Exception):
+            with Cookie_File.open('rb') as f:
+                cookies = pickle.load(f)
+            for cookie in cookies:
+                if cookie['name'] == '__Host-next-auth.csrf-token':
+                    continue
+                driver.add_cookie(cookie)
+
+            driver.get('https://civitai.com/models')
+            driver.get(check_url)
+            if driver.title == 'Innies: Better vulva - v1.1 | Stable Diffusion LoRA | Civitai':
+                cookies: list[dict] = driver.get_cookies()
+                with Cookie_File.open('wb') as f:
+                    pickle.dump(cookies, f)
+                self.ui.login_label.setStyleSheet('color: green;')
+                self.operation_browser_insert_html(
+                    '<span style="color: green;">'
+                    'Browser for civitai is already loaded.'
+                    '</span>'
+                )
+                return driver
+
+    @Slot()
+    def handle_login_window_start_signal(self):
+        options = webdriver.ChromeOptions()
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        self.driver_temp = webdriver.Chrome(options=options)
+        self.driver_temp.get('https://civitai.com')
+
+    def handle_login_window_finish_signal(self):
+        cookies: list[dict] = self.driver_temp.get_cookies()
+        with Cookie_File.open('wb') as f:
+            pickle.dump(cookies, f)
+        self.driver_temp.quit()
+        self.Handle_Manual_Login_OK_Signal.emit()
+
+    def handle_login_window_close_signal(self):
+        self.driver_for_civitai = self.get_web_browser(for_civitai=True)
+
+    def handle_login_window_reject_signal(self):
+        if self.driver_temp:
+            self.driver_temp.quit()
 
     def click_clear_push_button(self) -> None:
         """
