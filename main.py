@@ -10,6 +10,6 @@ if __name__ == '__main__':
 
     window = MainWindow()
     window.show()
-    app.aboutToQuit.connect(window.clear_threadpool_and_close_browser)
+    # app.aboutToQuit.connect(window.clear_threadpool_and_close_browser)
     app.aboutToQuit.connect(app.quit)
     sys.exit(app.exec())

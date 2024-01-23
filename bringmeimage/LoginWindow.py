@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 class LoginWindow(QDialog):
     Login_Window_Start_Signal = Signal()
     Login_Window_Finish_Signal = Signal()
-    Login_Window_Close_Signal = Signal()
+    Login_Window_ReLogin_Signal = Signal()
     Login_Window_Reject_Signal = Signal()
     """
     QDialog window for setting the browser
@@ -80,7 +80,7 @@ class LoginWindow(QDialog):
 
     @Slot()
     def handle_login_ok(self):
-        self.Login_Window_Close_Signal.emit()
+        self.Login_Window_ReLogin_Signal.emit()
         self.done(0)
 
     # Overrides the reject() to allow users to cancel the dialog using the ESC key
