@@ -15,10 +15,9 @@ class LoginWindow(QDialog):
     """
     QDialog window for setting the browser
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.initUI()
-        self.browser: WebDriver | None = None
 
         # Dialog always stay on
         # In some cases, changing the window flags may not immediately update the window's visibility.
@@ -26,30 +25,28 @@ class LoginWindow(QDialog):
         self.setWindowFlag(Qt.WindowStaysOnTopHint)
         self.show()
 
-    def initUI(self):
+    def initUI(self) -> None:
         self.setWindowTitle('Manual login')
         self.setGeometry(100, 100, 300, 200)
 
         self.v_layout = QVBoxLayout(self)
 
-        self.status_label = QLabel()
-        self.status_label.setText('Click "Start" to login')
-        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label = self.create_label('1. Click "Open" will open a browser for manual login')
         self.v_layout.addWidget(self.status_label)
 
-        self.start_button = QPushButton('Start')
-        self.start_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
-        self.start_button.clicked.connect(self.start_login)
-        self.v_layout.addWidget(self.start_button)
+        self.open_button = QPushButton('Open')
+        self.open_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.open_button.clicked.connect(self.open)
+        self.v_layout.addWidget(self.open_button)
 
         self.spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.v_layout.addSpacerItem(self.spacer)
 
-        self.finish_label = QLabel('After confirming login, click on "Finish"')
-        self.finish_label.setAlignment(Qt.AlignCenter)
-        self.finish_label.setStyleSheet("color: gray;")
-        self.finish_label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
-        self.v_layout.addWidget(self.finish_label)
+        self.finish_label_1 = self.create_label('2. After confirming login, click on "Finish"')
+        self.v_layout.addWidget(self.finish_label_1)
+
+        self.finish_label_2 = self.create_label('   (No need to close the browser)')
+        self.v_layout.addWidget(self.finish_label_2)
 
         self.finish_button = QPushButton('Finish')
         self.finish_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
@@ -57,11 +54,20 @@ class LoginWindow(QDialog):
         self.finish_button.setEnabled(False)
         self.v_layout.addWidget(self.finish_button)
 
+        self.note_label_1 = self.create_label('3. The program will attempt to re-login.(check)')
+        self.v_layout.addWidget(self.note_label_1)
+
+        self.note_label_2 = self.create_label('   (May be a brief freezing during the process)')
+        self.v_layout.addWidget(self.note_label_2)
+
         self.v_layout.setStretch(0, 1)
         self.v_layout.setStretch(1, 2)
         self.v_layout.setStretch(2, 1)
         self.v_layout.setStretch(3, 1)
-        self.v_layout.setStretch(4, 2)
+        self.v_layout.setStretch(4, 1)
+        self.v_layout.setStretch(5, 2)
+        self.v_layout.setStretch(6, 1)
+        self.v_layout.setStretch(7, 1)
 
         self.setLayout(self.v_layout)
 
@@ -70,22 +76,42 @@ class LoginWindow(QDialog):
             center_point = self.parentWidget().geometry().center()
             self.move(center_point.x() - self.width() / 2, center_point.y() - self.height() / 2)
 
-    def start_login(self):
+    @staticmethod
+    def create_label(label_string: str) -> QLabel:
+        label = QLabel(label_string)
+        label.setAlignment(Qt.AlignLeft)
+        label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        return label
+
+    def open(self) -> None:
+        """
+        Notify the main thread to open a browser for manual login by the user
+        :return:
+        """
         self.Login_Window_Start_Signal.emit()
-        self.finish_label.setStyleSheet("color: green;")
+        self.open_button.setEnabled(False)
         self.finish_button.setEnabled(True)
 
-    def finish(self):
+    def finish(self) -> None:
+        """
+        Notify the main thread to save cookies
+        :return:
+        """
         self.Login_Window_Finish_Signal.emit()
 
     @Slot()
-    def handle_login_ok(self):
+    def handle_login_ok(self) -> None:
+        """
+        Notify the main thread to test re-login and close the LoginWindow window
+        :return:
+        """
         self.Login_Window_ReLogin_Signal.emit()
         self.done(0)
 
     # Overrides the reject() to allow users to cancel the dialog using the ESC key
     def reject(self) -> None:
         """
+        Notify the main thread to close the temporary browser and close the LoginWindow window
         :return:
         """
         self.Login_Window_Reject_Signal.emit()
