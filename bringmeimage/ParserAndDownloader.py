@@ -18,18 +18,16 @@ class ImageUrlParserSignal(QObject):
 
 
 class ImageUrlParserRunner(QRunnable):
-    def __init__(self, legal_url_dict: dict):
+    def __init__(self, legal_url_dict: dict, driver: webdriver):
         super().__init__()
         self.legal_url_dict = legal_url_dict
+        self.driver = driver
+
         self.legal_url_parse_completed_dict = {}
         self.legal_url_parse_failed_dict = {}
         self.re_parser = re.compile(r'/models/(?P<modelId>\d+)/.*modelVersionId=(?P<modelVersionId>\d+)')
         self.images_info = []
         self.signals = ImageUrlParserSignal()
-
-        options = webdriver.FirefoxOptions()
-        options.add_argument('--headless')
-        self.webdriver = webdriver.Firefox(options=options)
 
     @Slot()
     def run(self) -> None:
@@ -54,9 +52,9 @@ class ImageUrlParserRunner(QRunnable):
                 continue
 
             try:
-                self.webdriver.get(image_url)
-                wait = WebDriverWait(self.webdriver, 10)
-                if result := wait.until(lambda driver: self.webdriver.execute_script(script)):
+                self.driver.get(image_url)
+                wait = WebDriverWait(self.driver, 10)
+                if result := wait.until(lambda driver: self.driver.execute_script(script)):
                     real_url, model_version_href = result
                     match = self.re_parser.match(model_version_href)
                     image_data = self.legal_url_dict[image_url]
@@ -72,7 +70,6 @@ class ImageUrlParserRunner(QRunnable):
             finally:
                 self.signals.ImageUrlParser_Processed_Signal.emit()
 
-        self.webdriver.quit()
         self.signals.ImageUrlParser_Completed_Signal.emit(
             (self.legal_url_parse_completed_dict, self.legal_url_parse_failed_dict)
         )
@@ -121,7 +118,7 @@ class VersionIdParserRunner(QRunnable):
             self.signals.VersionIdParser_Completed_Signal.emit(version_id_info)
         except Exception as e:
             self.signals.VersionIdParser_Failed_Signal.emit()
-            logger.info(f'VersionIdParser exception{e}: version_id({self.version_id})')
+            logger.info(f'VersionIdParser exception: {e}: version_id({self.version_id})')
 
 
 class DownloadRunnerSignals(QObject):
@@ -184,8 +181,73 @@ class DownloadRunner(QRunnable):
 
 
 if __name__ == '__main__':
-    test_image_dict = {'https://civitai.com/images/2940879': ImageData(url='https://civitai.com/images/2940879', imageId='2940879'),
-                       'https://civitai.com/images/3222147': ImageData(url='https://civitai.com/images/3222147', imageId='3222147'),
-                       }
-    runner = ImageUrlParserRunner(legal_url_dict=test_image_dict)
-    runner.run()
+    # ImageUrlParserWorker is just for test(use playwright)
+    from playwright.sync_api import Page, sync_playwright
+
+
+    class ImageUrlParserWorker(QObject):
+        ImageUrlParser_Processed_Signal = Signal()
+        ImageUrlParser_Completed_Signal = Signal(tuple)
+
+        def __init__(self):
+            super().__init__()
+            self.legal_url_dict = None
+            self.legal_url_parse_completed_dict = {}
+            self.legal_url_parse_failed_dict = {}
+            self.re_parser = re.compile(r'/models/(?P<modelId>\d+)/.*modelVersionId=(?P<modelVersionId>\d+)')
+            self.images_info = []
+
+        @Slot(dict)
+        def start(self, legal_url_dict) -> None:
+            self.create_the_page()
+            self.legal_url_dict = legal_url_dict
+            self.get_image_info()
+
+        @Slot()
+        def create_the_page(self) -> None:
+            self.playwright = sync_playwright().start()
+            self.browser = self.playwright.chromium.launch(headless=False,
+                                                           args=['--disable-blink-features=AutomationControlled'])
+            self.page = self.browser.new_page()
+
+        def get_image_info(self) -> None:
+            script = """() => {
+                    let imgElement = document.querySelector('.mantine-1ynvwjz img');
+                    let aElement = document.querySelector('.mantine-1snf94l a');
+                    if (imgElement && aElement) {
+                        var imgSrc = imgElement.getAttribute('src');
+                        var aHref = aElement.getAttribute('href');
+                        return [imgSrc, aHref];
+                    } else {
+                        return null;
+                    }
+                    }
+                    """
+            for image_url in self.legal_url_dict:
+                if self.legal_url_dict[image_url].is_parsed:
+                    self.legal_url_parse_completed_dict[image_url] = self.legal_url_dict[image_url]
+                    self.ImageUrlParser_Processed_Signal.emit()
+                    continue
+
+                try:
+                    self.page.goto(image_url)
+                    if result := self.page.wait_for_function(script, timeout=10000):
+                        result = result.json_value()
+                        real_url, model_version_href = result
+                        match = self.re_parser.match(model_version_href)
+                        image_data = self.legal_url_dict[image_url]
+                        image_data.real_url = real_url
+                        image_data.modelVersionId = match.group('modelVersionId')
+                        image_data.is_parsed = True
+                        self.legal_url_parse_completed_dict[image_url] = image_data
+                    else:
+                        self.legal_url_parse_failed_dict[image_url] = self.legal_url_dict[image_url]
+                except TimeoutException:
+                    self.legal_url_parse_failed_dict[image_url] = self.legal_url_dict[image_url]
+                    logger.info(f'ImageUrlParser timeout: {image_url}')
+                finally:
+                    self.ImageUrlParser_Processed_Signal.emit()
+
+            self.ImageUrlParser_Completed_Signal.emit(
+                (self.legal_url_parse_completed_dict, self.legal_url_parse_failed_dict)
+            )

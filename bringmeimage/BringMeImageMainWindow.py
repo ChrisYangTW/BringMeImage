@@ -1,18 +1,27 @@
+import contextlib
 import pickle
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 import httpx
-from PySide6.QtCore import Qt, QThreadPool
+from selenium import webdriver
+from selenium.webdriver.chrome.webdriver import WebDriver
+from PySide6.QtCore import Qt, QThreadPool, QEvent, Signal, Slot
 from PySide6.QtGui import QTextCharFormat, QMouseEvent
-from PySide6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QHBoxLayout, QLabel, QProgressBar
+from PySide6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QHBoxLayout, QLabel, QProgressBar, QApplication
 
-from bringmeimage.bringmeimage_UI import Ui_MainWindow
+from bringmeimage.BringMeImage_UI import Ui_MainWindow
 from bringmeimage.StartClipWindow import StartClipWindow
+from bringmeimage.LoginWindow import LoginWindow
 from bringmeimage.ActionWindow import FailedUrlsWindow
 from bringmeimage.ParserAndDownloader import ImageUrlParserRunner, VersionIdParserRunner, DownloadRunner
 from bringmeimage.BringMeImageData import ImageData
+
+Main_Path: Path = Path(__file__).parent
+Cookie_File = Main_Path / 'cookie' / 'cookies.pickle'
+Check_Url = r'https://civitai.com/models/10364/innies-better-vulva'
+Check_Title = r'Innies: Better vulva - v1.1 | Stable Diffusion LoRA | Civitai'
 
 
 @dataclass(slots=True)
@@ -25,18 +34,25 @@ class ProgressBarData:
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    Manual_Login_OK_Signal = Signal()
+
+    def __init__(self) -> None:
         super(MainWindow, self).__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
         self.pool = QThreadPool.globalInstance()
         self.httpx_client = httpx.Client()
+        self.driver_temp: WebDriver | None = None
+        self.driver_for_civitai: WebDriver | None = None
 
-        self.save_dir = None
-        self.legal_url_dict = {}
-        self.process_failed_url_dict = {}
-        self.version_id_info_dict = {}
+        self.save_dir: Path = Main_Path.parent / 'DownloadTemp'
+        if not self.save_dir.exists():
+            self.save_dir.mkdir(parents=True)
+        self.ui.folder_line_edit.setText(str(self.save_dir))
+        self.legal_urls: dict = {}
+        self.process_failed_urls: dict = {}
+        self.version_id_info: dict = {}
 
         self.progress_bar_task_name_list = []
         self.progress_bar_data_dict = {}
@@ -47,6 +63,8 @@ class MainWindow(QMainWindow):
         self.ui.folder_line_edit.mousePressEvent = self.select_storage_folder
         self.ui.civitai_check_box.clicked.connect(self.click_civitai_check_box)
         self.ui.categorize_check_box.clicked.connect(self.click_categorize_check_box)
+        self.ui.login_label.setStyleSheet('color: red;')
+        self.ui.login_label.mousePressEvent = self.click_login_label
         self.ui.clear_push_button.clicked.connect(self.click_clear_push_button)
         self.ui.clip_push_button.clicked.connect(self.start_clip_process)
         self.ui.go_push_button.clicked.connect(self.click_go_push_button)
@@ -56,7 +74,7 @@ class MainWindow(QMainWindow):
         Read the *.bringmeimage file (pickle) and load the corresponding configuration
         :return:
         """
-        if self.legal_url_dict or self.process_failed_url_dict:
+        if self.legal_urls or self.process_failed_urls:
             reply = QMessageBox.question(self, 'Warning',
                                          'Loading the file will clear any record, execute it?',
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
@@ -71,39 +89,36 @@ class MainWindow(QMainWindow):
                     record = pickle.load(f)
             except pickle.UnpicklingError:
                 self.operation_browser_insert_html(
-                    '<span style="color: pink;">'
-                    f'{datetime.now().strftime("%H:%M:%S")} '
-                    f'[ {len(self.legal_url_dict)} URLs ] | '
-                    f'The file appears to have been modified and is no longer readable'
-                    '</span>'
+                    color='pink',
+                    string='The file appears to have been modified and is no longer readable',
+                    prefix=True
                 )
             else:
-                self.legal_url_dict.clear()
-                self.process_failed_url_dict.clear()
+                self.legal_urls.clear()
+                self.process_failed_urls.clear()
                 self.clear_progress_bar()
                 filename = file_path.rsplit('/', maxsplit=1)[-1]
                 self.process_the_record(filename, record)
 
-    def process_the_record(self, filename: str, record: tuple) -> None:
+    def process_the_record(self, filename: str, record: tuple[Path, bool, bool, dict]) -> None:
         self.operation_browser_insert_html(
-            '<span style="color: cyan;">'
-            f'{datetime.now().strftime("%H:%M:%S")} '
-            f'[ {len(self.legal_url_dict)} URLs ] | Loading clipboard from "{filename}"'
-            '</span>'
+            color='cyan',
+            string=f'Loading clipboard from "{filename}"',
+            prefix=True
         )
 
-        save_dir_path, civitai_check_box, categorize_check_box, legal_url_dict = record
-        self.save_dir = save_dir_path
-        self.ui.folder_line_edit.setText(str(save_dir_path))
-        self.ui.civitai_check_box.setChecked(civitai_check_box)
+        save_dir, civitai_is_checked, categorize_is_checked, legal_urls = record
+        self.save_dir = save_dir
+        self.ui.folder_line_edit.setText(str(save_dir))
+        self.ui.civitai_check_box.setChecked(civitai_is_checked)
         self.ui.civitai_check_box.setEnabled(False)
-        self.ui.categorize_check_box.setChecked(categorize_check_box)
+        self.ui.categorize_check_box.setChecked(categorize_is_checked)
         self.ui.categorize_check_box.setEnabled(False)
-        self.legal_url_dict = legal_url_dict
+        self.legal_urls = legal_urls
 
         self.ui.operation_text_browser.append(
             f'{datetime.now().strftime("%H:%M:%S")} '
-            f'[ {len(self.legal_url_dict)} URLs ] | Click "GO" to start downloading'
+            f'[ {len(self.legal_urls)} URLs ] | Click "GO" to start downloading'
             f' or "Clip" to continue adding.'
         )
 
@@ -112,8 +127,8 @@ class MainWindow(QMainWindow):
         Pop up a QDialog window displaying the failed download image links
         :return:
         """
-        failed_url_window = FailedUrlsWindow(process_failed_url_dict=self.process_failed_url_dict,
-                                             version_id_info_dict=self.version_id_info_dict,
+        failed_url_window = FailedUrlsWindow(process_failed_url_dict=self.process_failed_urls,
+                                             version_id_info_dict=self.version_id_info,
                                              parent=self)
         failed_url_window.setWindowModality(Qt.ApplicationModal)
         failed_url_window.show()
@@ -123,7 +138,7 @@ class MainWindow(QMainWindow):
         Save the record without exiting the program
         :return:
         """
-        if not self.legal_url_dict:
+        if not self.legal_urls:
             return
 
         reply = QMessageBox.question(self, 'Warning',
@@ -136,20 +151,19 @@ class MainWindow(QMainWindow):
         record = (self.save_dir,
                   self.ui.civitai_check_box.isChecked(),
                   self.ui.categorize_check_box.isChecked(),
-                  self.legal_url_dict,
+                  self.legal_urls,
                   )
         with open(f'{datetime.now().strftime("%m-%d-%H:%M:%S")}.bringmeimage', 'wb') as f:
             pickle.dump(record, f)
 
-        self.legal_url_dict.clear()
+        self.legal_urls.clear()
         self.freeze_main_window(unfreeze=True)
         self.clear_progress_bar()
 
         self.operation_browser_insert_html(
-            '<span style="color: cyan;">'
-            f'{datetime.now().strftime("%H:%M:%S")} '
-            f'[ {len(self.legal_url_dict)} URLs ] | Save record completed'
-            '</span>'
+            color='cyan',
+            string='Save record completed',
+            prefix=True
         )
 
     def select_storage_folder(self, event: QMouseEvent) -> None:
@@ -158,9 +172,9 @@ class MainWindow(QMainWindow):
         :return:
         """
         if event.button() == Qt.LeftButton:
-            if folder_path := QFileDialog.getExistingDirectory(self, "Select Folder", options=QFileDialog.ShowDirsOnly):
-                self.ui.folder_line_edit.setText(folder_path)
-                self.save_dir = Path(folder_path)
+            if folder := QFileDialog.getExistingDirectory(self, "Select Folder", options=QFileDialog.ShowDirsOnly):
+                self.ui.folder_line_edit.setText(folder)
+                self.save_dir = Path(folder)
 
     def click_civitai_check_box(self, checked: bool) -> None:
         """
@@ -180,9 +194,137 @@ class MainWindow(QMainWindow):
         if checked and not self.ui.civitai_check_box.isChecked():
             self.ui.categorize_check_box.setChecked(False)
 
+    def click_login_label(self, event) -> None:
+        if event.button() == Qt.LeftButton and event.type() == QEvent.MouseButtonDblClick:
+            if not self.driver_for_civitai:
+                self.operation_browser_insert_html(
+                    color='cyan',
+                    string='Wait for set up the browser. (The program may experience a brief freezing)'
+                )
+                QApplication.processEvents()
+                self.driver_for_civitai = self.get_browser_for_civitai()
+            else:
+                self.operation_browser_insert_html(
+                    color='cyan',
+                    string='Already logged in.'
+                )
+
+    def get_browser_for_civitai(self) -> WebDriver | None:
+        """
+        Retrieve the browser with successful automatic login, otherwise prompt the user to log in manually
+        :return:
+        """
+        QApplication.processEvents()
+        self.freeze_main_window()
+
+        options = webdriver.ChromeOptions()
+        options.add_argument('--headless')
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        driver = webdriver.Chrome(options=options)
+        driver = self.set_browser_for_civitai(driver)
+
+        if not driver:
+            self.manual_login()
+            return
+
+        self.freeze_main_window(unfreeze=True)
+        return driver
+
+    def set_browser_for_civitai(self, driver: WebDriver) -> WebDriver | None:
+        """
+        Load cookies, update cookies if login authentication is successful
+        :param driver:
+        :return:
+        """
+        driver.get('https://civitai.com/')
+
+        with contextlib.suppress(Exception):
+            with Cookie_File.open('rb') as f:
+                cookies = pickle.load(f)
+            for cookie in cookies:
+                if cookie['name'] == '__Host-next-auth.csrf-token':
+                    continue
+                driver.add_cookie(cookie)
+
+            driver.get('https://civitai.com/models')
+            driver.get(Check_Url)
+            if driver.title == Check_Title:
+                cookies: list[dict] = driver.get_cookies()
+                with Cookie_File.open('wb') as f:
+                    pickle.dump(cookies, f)
+                self.ui.login_label.setStyleSheet('color: green;')
+                self.operation_browser_insert_html(
+                    color='cyan',
+                    string='Browser for civitai is already loaded.'
+                )
+                return driver
+
+    def manual_login(self) -> None:
+        """
+        Pop up the window for manual login
+        :return:
+        """
+        login_window = LoginWindow(parent=self)
+        login_window.Login_Window_Start_Signal.connect(self.handle_login_window_start_signal)
+        login_window.Login_Window_Finish_Signal.connect(self.handle_login_window_finish_signal)
+        login_window.Login_Window_ReLogin_Signal.connect(self.handle_login_window_relogin_signal)
+        login_window.Login_Window_Reject_Signal.connect(self.handle_login_window_reject_signal)
+        self.Manual_Login_OK_Signal.connect(login_window.handle_login_ok)
+        login_window.setWindowModality(Qt.ApplicationModal)
+        login_window.show()
+
+    @Slot()
+    def handle_login_window_start_signal(self) -> None:
+        """
+        Open the browser for the user to log in manually
+        :return:
+        """
+        options = webdriver.ChromeOptions()
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        self.driver_temp = webdriver.Chrome(options=options)
+        self.driver_temp.get('https://civitai.com')
+
+    @Slot()
+    def handle_login_window_finish_signal(self) -> None:
+        """
+        Save cookies and send a notification to the LoginWindow upon task completion
+        :return:
+        """
+        cookies: list[dict] = self.driver_temp.get_cookies()
+
+        with Cookie_File.open('wb') as f:
+            pickle.dump(cookies, f)
+
+        self.driver_temp.quit()
+        self.Manual_Login_OK_Signal.emit()
+
+    @Slot()
+    def handle_login_window_relogin_signal(self) -> None:
+        """
+        Re-login for authentication using the newly obtained cookies
+        :return:
+        """
+        QApplication.processEvents()
+        self.driver_for_civitai = self.get_browser_for_civitai()
+        if not self.driver_for_civitai:
+            self.operation_browser_insert_html(
+                color='red',
+                string='Attempted to re-login but failed authentication.'
+            )
+
+    @Slot()
+    def handle_login_window_reject_signal(self) -> None:
+        """
+        If the LoadWindow is closed abnormally, delete the currently created browser instance (if any)
+        :return:
+        """
+        if self.driver_temp:
+            self.driver_temp.quit()
+        self.freeze_main_window(unfreeze=True)
+
     def click_clear_push_button(self) -> None:
         """
-        Initialize the program. After executing "Clip", the checkboxes for "CivitAi" and "Categorize" will be locked.
+        After executing "Clip", the checkboxes for "CivitAi" and "Categorize" will be locked.
         Only after executing "Clear" will all records be cleared and the checkboxes unlocked.
         :return:
         """
@@ -190,14 +332,13 @@ class MainWindow(QMainWindow):
                                      'Are you sure you want to initialize? (This will clear the records)',
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
-            self.legal_url_dict.clear()
+            self.legal_urls.clear()
             self.freeze_main_window(unfreeze=True)
             self.clear_progress_bar()
             self.operation_browser_insert_html(
-                '<span style="color: cyan;">'
-                f'{datetime.now().strftime("%H:%M:%S")} '
-                f'[ {len(self.legal_url_dict)} URLs ] | Initialize'
-                '</span>'
+                color='cyan',
+                string='Initialize.',
+                prefix=True
             )
 
     def start_clip_process(self) -> None:
@@ -205,19 +346,18 @@ class MainWindow(QMainWindow):
         Pop up the "Clip" window and start the clip process
         :return:
         """
-        if self.process_failed_url_dict:
+        if self.process_failed_urls:
             reply = QMessageBox.question(self, 'Warning',
                                          'Starting "Clip" will clear the failed download record, execute it?',
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.No:
                 return
 
-            self.process_failed_url_dict.clear()
+            self.process_failed_urls.clear()
             self.operation_browser_insert_html(
-                '<span style="color: cyan;">'
-                f'{datetime.now().strftime("%H:%M:%S")} '
-                f'[ {len(self.legal_url_dict)} URLs ] | Clear the failed download record'
-                '</span>'
+                color='cyan',
+                string='Clear the failed download record',
+                prefix=True
             )
 
         if not self.save_dir:
@@ -225,7 +365,7 @@ class MainWindow(QMainWindow):
             return
 
         start_clip_window = StartClipWindow(for_civitai=self.ui.civitai_check_box.isChecked(),
-                                            legal_url_dict=self.legal_url_dict,
+                                            legal_url_dict=self.legal_urls,
                                             parent=self)
         start_clip_window.Start_Clip_Close_Window_Signal.connect(self.handle_clip_close_window_signal)
         # Only after this QDialog is closed, the main window can be used again
@@ -243,13 +383,13 @@ class MainWindow(QMainWindow):
         :return:
         """
         if legal_url_dict:
-            self.legal_url_dict = legal_url_dict
+            self.legal_urls = legal_url_dict
             self.freeze_main_window(unfreeze=True)
             self.ui.civitai_check_box.setEnabled(False)
             self.ui.categorize_check_box.setEnabled(False)
             self.ui.operation_text_browser.append(
                 f'{datetime.now().strftime("%H:%M:%S")} '
-                f'[ {len(self.legal_url_dict)} URLs ] | Click "GO" to start downloading'
+                f'[ {len(self.legal_urls)} URLs ] | Click "GO" to start downloading'
                 f' or "Clip" to continue adding.'
             )
         else:
@@ -261,12 +401,19 @@ class MainWindow(QMainWindow):
         otherwise, execute the analysis of image links first.
         :return:
         """
-        if not self.legal_url_dict:
+        if not self.legal_urls:
             self.operation_browser_insert_html(
-                '<span style="color: pink;">'
-                f'{datetime.now().strftime("%H:%M:%S")} '
-                f'[ {len(self.legal_url_dict)} URLs ] | There are no URLs in the list'
-                '</span>'
+                color='pink',
+                string='There are no URLs in the list',
+                prefix=True
+            )
+            return
+
+        if self.ui.civitai_check_box.isChecked() and not self.driver_for_civitai:
+            self.operation_browser_insert_html(
+                color='pink',
+                string='Login first',
+                prefix=True
             )
             return
 
@@ -285,16 +432,17 @@ class MainWindow(QMainWindow):
         """
         self.ui.operation_text_browser.append(
             f'{datetime.now().strftime("%H:%M:%S")} '
-            f'[ {len(self.legal_url_dict)} URLs ] | '
+            f'[ {len(self.legal_urls)} URLs ] | '
             f'(Browsing) Waiting to retrieve relevant information for each image.'
         )
-        self.add_progress_bar(task_name='Browsing', count=len(self.legal_url_dict))
+        self.add_progress_bar(task_name='Browsing', count=len(self.legal_urls))
 
-        parser = ImageUrlParserRunner(legal_url_dict=self.legal_url_dict)
+        parser = ImageUrlParserRunner(legal_url_dict=self.legal_urls, driver=self.driver_for_civitai)
         parser.signals.ImageUrlParser_Processed_Signal.connect(self.handle_ImageUrlParser_process_signal)
         parser.signals.ImageUrlParser_Completed_Signal.connect(self.handle_ImageUrlParser_completed_signal)
         self.pool.start(parser)
 
+    @Slot()
     def handle_ImageUrlParser_process_signal(self) -> None:
         """
         Update the progress bar regardless of successful parsing
@@ -302,27 +450,32 @@ class MainWindow(QMainWindow):
         """
         self.update_process_bar(task_name='Browsing', is_completed=True)
 
-    def handle_ImageUrlParser_completed_signal(self, url_dict: tuple[dict, dict]) -> None:
-        legal_url_parse_completed_dict, legal_url_parse_failed_dict = url_dict
-        if not legal_url_parse_completed_dict:
+    @Slot(tuple)
+    def handle_ImageUrlParser_completed_signal(self, result: tuple[dict, dict]) -> None:
+        legal_urls, failed_urls = result
+        if not legal_urls:
             self.operation_browser_insert_html(
-                '<span style="color: pink;">'
-                f'{datetime.now().strftime("%H:%M:%S")} '
-                f'[ {len(self.legal_url_dict)} URLs ] | '
-                f'Unable to resolve any image download links from the provided image URLs.<br>'
-                f'Click "Go" to retry or close the main program and save the list. '
-                f'You can execute it again once the server responds properly.'
-                '</span>'
+                color='pink',
+                string='Unable to resolve any image download links from the provided image URLs.<br>'
+                       'Click "Go" to retry or close the main program and save the list. '
+                       'You can execute it again once the server responds properly.',
+                prefix=True
             )
             return
 
-        if legal_url_parse_failed_dict:
-            self.process_failed_url_dict = legal_url_parse_failed_dict
+        if failed_urls:
+            self.operation_browser_insert_html(
+                color='pink',
+                string=f'"There are {len(failed_urls)} links with inaccessible image paths; '
+                       f'you can check them later in "Failed URLs"',
+                prefix=True
+            )
+            self.process_failed_urls = failed_urls
 
         if self.ui.categorize_check_box.isChecked():
-            self.get_version_id_info(legal_url_parse_completed_dict)
+            self.get_version_id_info(legal_urls)
         else:
-            self.legal_url_dict = legal_url_parse_completed_dict
+            self.legal_urls = legal_urls
             self.start_download_image()
 
     def get_version_id_info(self, legal_url_dict: dict) -> None:
@@ -335,22 +488,22 @@ class MainWindow(QMainWindow):
 
         self.ui.operation_text_browser.append(
             f'{datetime.now().strftime("%H:%M:%S")} '
-            f'[ {len(self.legal_url_dict)} URLs ] | '
+            f'[ {len(self.legal_urls)} URLs ] | '
             f'(Parsing) Waiting to obtain the names of the version and model.'
         )
 
         self.add_progress_bar(task_name='Parsing', count=len(version_id_set))
         for version_id in version_id_set:
             # avoid repeated parsing of version_id
-            if version_id in self.version_id_info_dict:
+            if version_id in self.version_id_info:
                 self.handle_parsing_task(is_completed=True)
                 continue
 
             parser = VersionIdParserRunner(httpx_client=self.httpx_client, version_id=version_id)
             self.set_signal_and_add_to_pool(parser)
 
-        # updating self.legal_url_dict for consistent content display
-        self.legal_url_dict = legal_url_dict
+        # updating self.legal_urls for consistent content display
+        self.legal_urls = legal_url_dict
 
     def set_signal_and_add_to_pool(self, parser) -> None:
         parser.signals.VersionIdParser_Failed_Signal.connect(self.handle_VersionIdParser_failed_signal)
@@ -362,35 +515,35 @@ class MainWindow(QMainWindow):
 
     def handle_VersionIdParser_completed_signal(self, version_id_info: dict) -> None:
         # hint: version_id_info = {self.version_id: dataclass(version_name, model_id, model_name, creator)}
-        self.version_id_info_dict.update(version_id_info)
+        self.version_id_info.update(version_id_info)
         self.handle_parsing_task(is_completed=True)
 
     def handle_parsing_task(self, is_completed: bool):
         progress_bar_data = self.update_process_bar(task_name='Parsing', is_completed=is_completed)
         quantity = progress_bar_data.quantity
         if progress_bar_data.executed == quantity:
-            if progress_bar_data.completed != quantity or self.process_failed_url_dict:
+            if progress_bar_data.completed != quantity or self.process_failed_urls:
                 reply = QMessageBox.question(self, 'Warning',
                                              'Not all images have been fully parsed, but you can still continue '
                                              'downloading the ones that have been parsed. Do you want to proceed?',
                                              QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                 if reply == QMessageBox.No:
-                    self.legal_url_dict.update(self.process_failed_url_dict)
-                    self.process_failed_url_dict.clear()
+                    self.legal_urls.update(self.process_failed_urls)
+                    self.process_failed_urls.clear()
                     self.ui.folder_line_edit.setEnabled(True)
                     self.ui.clip_push_button.setEnabled(True)
                     self.ui.go_push_button.setEnabled(True)
                     self.ui.clear_push_button.setEnabled(True)
                     self.ui.operation_text_browser.append(
                         f'{datetime.now().strftime("%H:%M:%S")} '
-                        f'[ {len(self.legal_url_dict)} URLs ] | Click "GO" to start downloading'
+                        f'[ {len(self.legal_urls)} URLs ] | Click "GO" to start downloading'
                         f' or "Clip" to continue adding.'
                     )
                     return
 
             self.ui.operation_text_browser.append(
                 f'{datetime.now().strftime("%H:%M:%S")} '
-                f'[ {len(self.legal_url_dict)} URLs ] | '
+                f'[ {len(self.legal_urls)} URLs ] | '
                 f'(Downloading) Start downloading images'
             )
             self.start_download_image()
@@ -398,21 +551,21 @@ class MainWindow(QMainWindow):
     def start_download_image(self) -> None:
         self.ui.operation_text_browser.append(
             f'{datetime.now().strftime("%H:%M:%S")} '
-            f'[ {len(self.legal_url_dict)} URLs ] | '
+            f'[ {len(self.legal_urls)} URLs ] | '
             f'(Downloading) Start downloading images'
         )
-        self.add_progress_bar(task_name='Downloading', count=len(self.legal_url_dict))
+        self.add_progress_bar(task_name='Downloading', count=len(self.legal_urls))
 
-        for image_data in self.legal_url_dict.values():
+        for image_data in self.legal_urls.values():
             downloader = DownloadRunner(httpx_client=self.httpx_client, image_data=image_data, save_dir=self.save_dir,
                                         categorize=self.ui.categorize_check_box.isChecked(),
-                                        version_id_info_dict=self.version_id_info_dict)
+                                        version_id_info_dict=self.version_id_info)
             downloader.signals.download_failed_signal.connect(self.handle_download_failed_signal)
             downloader.signals.download_completed_signal.connect(self.handle_download_completed_signal)
             self.pool.start(downloader)
 
     def handle_download_failed_signal(self, image_data: ImageData) -> None:
-        self.process_failed_url_dict.update({image_data.url: image_data})
+        self.process_failed_urls.update({image_data.url: image_data})
         self.handle_download_task(is_completed=False)
 
     def handle_download_completed_signal(self) -> None:
@@ -430,11 +583,9 @@ class MainWindow(QMainWindow):
                 }
             """)
             self.operation_browser_insert_html(
-                '<span style="color: green;">'
-                f'{datetime.now().strftime("%H:%M:%S")} '
-                f'[ {len(self.legal_url_dict)} URLs ] | '
-                f'All download tasks is finished.'
-                '</span>'
+                color='green',
+                string='All download tasks is finished.',
+                prefix=True
             )
 
             if progress_bar_info.completed != progress_bar_info.quantity:
@@ -458,18 +609,16 @@ class MainWindow(QMainWindow):
                         }
                     """)
                 self.operation_browser_insert_html(
-                    '<span style="color: red;">'
-                    f'{datetime.now().strftime("%H:%M:%S")} '
-                    f'[ {len(self.legal_url_dict)} URLs ] | '
-                    f'But, {progress_bar_info.executed - progress_bar_info.completed} '
-                    f'failed downloads for URLs. Check them at Option > Show Failed URLs'
-                    '</span>'
+                    color='red',
+                    string=f'But, {progress_bar_info.executed - progress_bar_info.completed} '
+                           'failed downloads for URLs. Check them at Option > Show Failed URLs',
+                    prefix=True
                 )
 
-            self.legal_url_dict.clear()
+            self.legal_urls.clear()
             self.ui.operation_text_browser.append(
                 f'{datetime.now().strftime("%H:%M:%S")} '
-                f'[ {len(self.legal_url_dict)} URLs ] | Clear the record list'
+                f'[ {len(self.legal_urls)} URLs ] | Clear the record list'
             )
             self.freeze_main_window(unfreeze=True)
 
@@ -533,6 +682,7 @@ class MainWindow(QMainWindow):
         :return:
         """
         self.ui.folder_line_edit.setEnabled(unfreeze)
+        self.ui.login_label.setEnabled(unfreeze)
         self.ui.clip_push_button.setEnabled(unfreeze)
         self.ui.go_push_button.setEnabled(unfreeze)
         self.ui.civitai_check_box.setEnabled(unfreeze)
@@ -550,16 +700,18 @@ class MainWindow(QMainWindow):
         self.ui.actionShowFailUrl.setEnabled(enable)
         self.ui.actionSaveTheRecord.setEnabled(enable)
 
-    def operation_browser_insert_html(self, html_string: str, newline_first=True) -> None:
+    def operation_browser_insert_html(self, color: str, string: str, prefix: bool = False) -> None:
         """
         Using HTML syntax in self.ui.operation_text_browser
-        :param html_string:
-        :param newline_first:
+        :param string:
+        :param color:
+        :param prefix:
         :return:
         """
-        if newline_first:
-            self.ui.operation_text_browser.append('')
-        self.ui.operation_text_browser.insertHtml(html_string)
+        prefix_string = f'{datetime.now().strftime("%H:%M:%S")} [ {len(self.legal_urls)} URLs ] | ' if prefix else ''
+        full_string = f'<span style="color: {color};">{prefix_string}{string}</span>'
+        self.ui.operation_text_browser.append('')
+        self.ui.operation_text_browser.insertHtml(full_string)
         self.ui.operation_text_browser.setCurrentCharFormat(QTextCharFormat())
 
     def clear_progress_bar(self) -> None:
@@ -591,7 +743,7 @@ class MainWindow(QMainWindow):
         :param event:
         :return:
         """
-        if self.legal_url_dict:
+        if self.legal_urls:
             reply = QMessageBox.question(self, 'Warning',
                                          'Do you want to save the URL of the clipboard before exiting？',
                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
@@ -599,15 +751,18 @@ class MainWindow(QMainWindow):
                 record = (self.save_dir,
                           self.ui.civitai_check_box.isChecked(),
                           self.ui.categorize_check_box.isChecked(),
-                          self.legal_url_dict,
+                          self.legal_urls,
                           )
                 with open(f'{datetime.now().strftime("%m-%d-%H:%M:%S")}.bringmeimage', 'wb') as f:
                     pickle.dump(record, f)
 
         event.accept()
 
-    def clear_threadpool(self) -> None:
-        """
-        Clear the global thread pool to ensure all tasks are cancelled before the application exits
-        """
-        self.pool.clear()
+    # def clear_threadpool_and_close_browser(self) -> None:
+    #     """
+    #     Clear the global thread pool to ensure all tasks are cancelled before the application exits
+    #     """
+    #     self.pool.clear()
+    #
+    #     if self.driver_for_civitai:
+    #         self.driver_for_civitai.quit()

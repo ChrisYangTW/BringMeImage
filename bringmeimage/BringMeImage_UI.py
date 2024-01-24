@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'bringmeimage_main.ui'
+## Form generated from reading UI file 'BringMeImage_UI.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.5.3
+## Created by: Qt User Interface Compiler version 6.6.1
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -42,6 +42,11 @@ class Ui_MainWindow(object):
         self.horizontalLayout_1.setObjectName(u"horizontalLayout_1")
         self.folder_label = QLabel(self.centralwidget)
         self.folder_label.setObjectName(u"folder_label")
+        sizePolicy = QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.folder_label.sizePolicy().hasHeightForWidth())
+        self.folder_label.setSizePolicy(sizePolicy)
         self.folder_label.setAlignment(Qt.AlignCenter)
 
         self.horizontalLayout_1.addWidget(self.folder_label)
@@ -53,8 +58,17 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_1.addWidget(self.folder_line_edit)
 
+        self.login_label = QLabel(self.centralwidget)
+        self.login_label.setObjectName(u"login_label")
+        sizePolicy.setHeightForWidth(self.login_label.sizePolicy().hasHeightForWidth())
+        self.login_label.setSizePolicy(sizePolicy)
+        self.login_label.setAlignment(Qt.AlignCenter)
+
+        self.horizontalLayout_1.addWidget(self.login_label)
+
         self.horizontalLayout_1.setStretch(0, 1)
-        self.horizontalLayout_1.setStretch(1, 10)
+        self.horizontalLayout_1.setStretch(1, 9)
+        self.horizontalLayout_1.setStretch(2, 1)
 
         self.verticalLayout.addLayout(self.horizontalLayout_1)
 
@@ -139,6 +153,7 @@ class Ui_MainWindow(object):
         self.folder_line_edit.setToolTip("")
 #endif // QT_CONFIG(tooltip)
         self.folder_line_edit.setPlaceholderText(QCoreApplication.translate("MainWindow", u"Click to select the path for saving", None))
+        self.login_label.setText(QCoreApplication.translate("MainWindow", u"Login", None))
 #if QT_CONFIG(tooltip)
         self.clip_push_button.setToolTip("")
 #endif // QT_CONFIG(tooltip)
