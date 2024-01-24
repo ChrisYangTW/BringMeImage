@@ -18,8 +18,8 @@ from bringmeimage.ActionWindow import FailedUrlsWindow
 from bringmeimage.ParserAndDownloader import ImageUrlParserRunner, VersionIdParserRunner, DownloadRunner
 from bringmeimage.BringMeImageData import ImageData
 
-
-Cookie_File = Path(__file__).parent.absolute() / 'cookie' / 'cookies.pickle'
+Main_Path: Path = Path(__file__).parent
+Cookie_File = Main_Path / 'cookie' / 'cookies.pickle'
 Check_Url = r'https://civitai.com/models/10364/innies-better-vulva'
 Check_Title = r'Innies: Better vulva - v1.1 | Stable Diffusion LoRA | Civitai'
 
@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
         self.driver_temp: WebDriver | None = None
         self.driver_for_civitai: WebDriver | None = None
 
-        self.save_dir: Path = Path(__file__).parent.parent / 'DownloadTemp'
+        self.save_dir: Path = Main_Path.parent / 'DownloadTemp'
         if not self.save_dir.exists():
             self.save_dir.mkdir(parents=True)
         self.ui.folder_line_edit.setText(str(self.save_dir))
@@ -682,6 +682,7 @@ class MainWindow(QMainWindow):
         :return:
         """
         self.ui.folder_line_edit.setEnabled(unfreeze)
+        self.ui.login_label.setEnabled(unfreeze)
         self.ui.clip_push_button.setEnabled(unfreeze)
         self.ui.go_push_button.setEnabled(unfreeze)
         self.ui.civitai_check_box.setEnabled(unfreeze)
@@ -757,11 +758,11 @@ class MainWindow(QMainWindow):
 
         event.accept()
 
-    def clear_threadpool_and_close_browser(self) -> None:
-        """
-        Clear the global thread pool to ensure all tasks are cancelled before the application exits
-        """
-        self.pool.clear()
-
-        if self.driver_for_civitai:
-            self.driver_for_civitai.quit()
+    # def clear_threadpool_and_close_browser(self) -> None:
+    #     """
+    #     Clear the global thread pool to ensure all tasks are cancelled before the application exits
+    #     """
+    #     self.pool.clear()
+    #
+    #     if self.driver_for_civitai:
+    #         self.driver_for_civitai.quit()
