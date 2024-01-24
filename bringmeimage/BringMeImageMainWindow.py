@@ -201,6 +201,7 @@ class MainWindow(QMainWindow):
                     color='cyan',
                     string='Wait for set up the browser. (The program may experience a brief freezing)'
                 )
+                self.freeze_main_window()
                 QApplication.processEvents()
                 self.driver_for_civitai = self.get_browser_for_civitai()
             else:
@@ -215,7 +216,6 @@ class MainWindow(QMainWindow):
         :return:
         """
         QApplication.processEvents()
-        self.freeze_main_window()
 
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
@@ -304,6 +304,7 @@ class MainWindow(QMainWindow):
         Re-login for authentication using the newly obtained cookies
         :return:
         """
+        self.freeze_main_window()
         QApplication.processEvents()
         self.driver_for_civitai = self.get_browser_for_civitai()
         if not self.driver_for_civitai:
