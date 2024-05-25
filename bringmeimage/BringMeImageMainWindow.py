@@ -1,8 +1,11 @@
 import contextlib
 import pickle
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import sys
+import subprocess
 
 import httpx
 from selenium import webdriver
@@ -45,6 +48,10 @@ class MainWindow(QMainWindow):
         self.httpx_client = httpx.Client()
         self.driver_temp: WebDriver | None = None
         self.driver_for_civitai: WebDriver | None = None
+        self.origin_google_chrome_pid: set = set()
+        self.google_chrome_pid: set = set()
+        self.origin_chromedriver_pid: set = set()
+        self.chromedriver_pid: set = set()
 
         self.save_dir: Path = Main_Path.parent / 'DownloadTemp'
         if not self.save_dir.exists():
@@ -197,6 +204,10 @@ class MainWindow(QMainWindow):
     def click_login_label(self, event) -> None:
         if event.button() == Qt.LeftButton and event.type() == QEvent.MouseButtonDblClick:
             if not self.driver_for_civitai:
+                if sys.platform == 'darwin':
+                    self.origin_chromedriver_pid.update(self.get_pid(process_name='chromedriver'))
+                    self.origin_google_chrome_pid.update(self.get_pid(process_name='GoogleChrome'))
+
                 self.operation_browser_insert_html(
                     color='cyan',
                     string='Wait for set up the browser. (The program may experience a brief freezing)'
@@ -226,6 +237,10 @@ class MainWindow(QMainWindow):
         if not driver:
             self.manual_login()
             return
+
+        if sys.platform == 'darwin':
+            self.chromedriver_pid.update(self.get_pid(process_name='chromedriver'))
+            self.google_chrome_pid.update(self.get_pid(process_name='GoogleChrome'))
 
         self.freeze_main_window(unfreeze=True)
         return driver
@@ -738,6 +753,32 @@ class MainWindow(QMainWindow):
             elif item.layout():
                 self.clear_layout_widgets(item.layout())
 
+    def get_pid(self, process_name: str) -> list:
+        pid: list = []
+        paser = re.compile(r'^\S*\s+(\d+)\s+')
+
+        if process_name == 'GoogleChrome':
+            command = "ps aux | grep '[M]acOS/Google Chrome [^H]'"
+        elif process_name == 'chromedriver':
+            command = "ps aux | grep '[c]hromedriver.*chromedriver'"
+        else:
+            raise AssertionError('process_name must be either GoogleChrome or chromedriver')
+
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        if result.stdout:
+            for result in result.stdout.splitlines():
+                match = paser.match(result)
+                if match:
+                    pid.append(match.group(1))
+
+        return pid
+
+    def clear_chromedriver_process(self) -> None:
+        for chromedriver_pid in self.chromedriver_pid:
+            subprocess.run(f'kill -TERM {chromedriver_pid}', shell=True)
+        for google_chrome_pid in self.google_chrome_pid:
+            subprocess.run(f'kill -TERM {google_chrome_pid}', shell=True)
+
     def closeEvent(self, event) -> None:
         """
         If self.legal_url_info_list is not empty, before closing the window, ask if you want to save it
@@ -757,6 +798,8 @@ class MainWindow(QMainWindow):
                 with open(f'{datetime.now().strftime("%m-%d-%H:%M:%S")}.bringmeimage', 'wb') as f:
                     pickle.dump(record, f)
 
+        if sys.platform == 'darwin':
+            self.clear_chromedriver_process()
         event.accept()
 
     # def clear_threadpool_and_close_browser(self) -> None:

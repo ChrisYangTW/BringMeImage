@@ -35,8 +35,8 @@ class ImageUrlParserRunner(QRunnable):
 
     def get_image_info(self) -> None:
         script = """
-        let imgElement = document.querySelector('.mantine-1ynvwjz img');
-        let aElement = document.querySelector('.mantine-1snf94l a');
+        let imgElement = document.querySelector('.relative.flex.size-full.items-center.justify-center img');
+        let aElement = document.querySelector('.flex.items-center.justify-between.gap-3 a');
         if (imgElement && aElement) {
             var imgSrc = imgElement.getAttribute('src');
             var aHref = aElement.getAttribute('href');
@@ -178,76 +178,3 @@ class DownloadRunner(QRunnable):
         except Exception as e:
             self.signals.download_failed_signal.emit(self.image_data)
             logger.info(f'Download exception{e}: real image url {real_url}')
-
-
-if __name__ == '__main__':
-    # ImageUrlParserWorker is just for test(use playwright)
-    from playwright.sync_api import Page, sync_playwright
-
-
-    class ImageUrlParserWorker(QObject):
-        ImageUrlParser_Processed_Signal = Signal()
-        ImageUrlParser_Completed_Signal = Signal(tuple)
-
-        def __init__(self):
-            super().__init__()
-            self.legal_url_dict = None
-            self.legal_url_parse_completed_dict = {}
-            self.legal_url_parse_failed_dict = {}
-            self.re_parser = re.compile(r'/models/(?P<modelId>\d+)/.*modelVersionId=(?P<modelVersionId>\d+)')
-            self.images_info = []
-
-        @Slot(dict)
-        def start(self, legal_url_dict) -> None:
-            self.create_the_page()
-            self.legal_url_dict = legal_url_dict
-            self.get_image_info()
-
-        @Slot()
-        def create_the_page(self) -> None:
-            self.playwright = sync_playwright().start()
-            self.browser = self.playwright.chromium.launch(headless=False,
-                                                           args=['--disable-blink-features=AutomationControlled'])
-            self.page = self.browser.new_page()
-
-        def get_image_info(self) -> None:
-            script = """() => {
-                    let imgElement = document.querySelector('.mantine-1ynvwjz img');
-                    let aElement = document.querySelector('.mantine-1snf94l a');
-                    if (imgElement && aElement) {
-                        var imgSrc = imgElement.getAttribute('src');
-                        var aHref = aElement.getAttribute('href');
-                        return [imgSrc, aHref];
-                    } else {
-                        return null;
-                    }
-                    }
-                    """
-            for image_url in self.legal_url_dict:
-                if self.legal_url_dict[image_url].is_parsed:
-                    self.legal_url_parse_completed_dict[image_url] = self.legal_url_dict[image_url]
-                    self.ImageUrlParser_Processed_Signal.emit()
-                    continue
-
-                try:
-                    self.page.goto(image_url)
-                    if result := self.page.wait_for_function(script, timeout=10000):
-                        result = result.json_value()
-                        real_url, model_version_href = result
-                        match = self.re_parser.match(model_version_href)
-                        image_data = self.legal_url_dict[image_url]
-                        image_data.real_url = real_url
-                        image_data.modelVersionId = match.group('modelVersionId')
-                        image_data.is_parsed = True
-                        self.legal_url_parse_completed_dict[image_url] = image_data
-                    else:
-                        self.legal_url_parse_failed_dict[image_url] = self.legal_url_dict[image_url]
-                except TimeoutException:
-                    self.legal_url_parse_failed_dict[image_url] = self.legal_url_dict[image_url]
-                    logger.info(f'ImageUrlParser timeout: {image_url}')
-                finally:
-                    self.ImageUrlParser_Processed_Signal.emit()
-
-            self.ImageUrlParser_Completed_Signal.emit(
-                (self.legal_url_parse_completed_dict, self.legal_url_parse_failed_dict)
-            )
