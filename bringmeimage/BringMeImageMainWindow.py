@@ -801,12 +801,3 @@ class MainWindow(QMainWindow):
         if sys.platform == 'darwin':
             self.clear_chromedriver_process()
         event.accept()
-
-    # def clear_threadpool_and_close_browser(self) -> None:
-    #     """
-    #     Clear the global thread pool to ensure all tasks are cancelled before the application exits
-    #     """
-    #     self.pool.clear()
-    #
-    #     if self.driver_for_civitai:
-    #         self.driver_for_civitai.quit()
