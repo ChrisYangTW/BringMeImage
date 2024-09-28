@@ -1,15 +1,12 @@
 import contextlib
 import pickle
-import re
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-import sys
-import subprocess
 
 import httpx
 from selenium import webdriver
 from selenium.webdriver.chrome.webdriver import WebDriver
+from selenium.webdriver.chrome.options import Options
 from PySide6.QtCore import Qt, QThreadPool, QEvent, Signal, Slot
 from PySide6.QtGui import QTextCharFormat, QMouseEvent
 from PySide6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QHBoxLayout, QLabel, QProgressBar, QApplication
@@ -19,21 +16,12 @@ from bringmeimage.StartClipWindow import StartClipWindow
 from bringmeimage.LoginWindow import LoginWindow
 from bringmeimage.ActionWindow import FailedUrlsWindow
 from bringmeimage.ParserAndDownloader import ImageUrlParserRunner, VersionIdParserRunner, DownloadRunner
-from bringmeimage.BringMeImageData import ImageData
+from bringmeimage.BringMeImageData import ImageData, ProgressBarData
+from bringmeimage.config import Login_Check_Url, Login_Check_Title, Chrome_Path
+
 
 Main_Path: Path = Path(__file__).parent
 Cookie_File = Main_Path / 'cookie' / 'cookies.pickle'
-Check_Url = r'https://civitai.com/models/10364/innies-better-vulva'
-Check_Title = r'Innies: Better vulva - v1.1 | Stable Diffusion LoRA | Civitai'
-
-
-@dataclass(slots=True)
-class ProgressBarData:
-    progress_layout: QHBoxLayout
-    progress_bar_widget: QProgressBar
-    completed: int
-    executed: int
-    quantity: int
 
 
 class MainWindow(QMainWindow):
@@ -48,10 +36,7 @@ class MainWindow(QMainWindow):
         self.httpx_client = httpx.Client()
         self.driver_temp: WebDriver | None = None
         self.driver_for_civitai: WebDriver | None = None
-        self.origin_google_chrome_pid: set = set()
-        self.google_chrome_pid: set = set()
-        self.origin_chromedriver_pid: set = set()
-        self.chromedriver_pid: set = set()
+        self.is_login_civitai: bool = False
 
         self.save_dir: Path = Main_Path.parent / 'DownloadTemp'
         if not self.save_dir.exists():
@@ -61,8 +46,8 @@ class MainWindow(QMainWindow):
         self.process_failed_urls: dict = {}
         self.version_id_info: dict = {}
 
-        self.progress_bar_task_name_list = []
-        self.progress_bar_data_dict = {}
+        self.progress_bar_task_name: list = []
+        self.progress_bar_data: dict = {}
 
         self.ui.actionLoadClipboardFile.triggered.connect(self.load_clipboard_file)
         self.ui.actionShowFailUrl.triggered.connect(self.show_failed_url)
@@ -204,10 +189,6 @@ class MainWindow(QMainWindow):
     def click_login_label(self, event) -> None:
         if event.button() == Qt.LeftButton and event.type() == QEvent.MouseButtonDblClick:
             if not self.driver_for_civitai:
-                if sys.platform == 'darwin':
-                    self.origin_chromedriver_pid.update(self.get_pid(process_name='chromedriver'))
-                    self.origin_google_chrome_pid.update(self.get_pid(process_name='GoogleChrome'))
-
                 self.operation_browser_insert_html(
                     color='cyan',
                     string='Wait for set up the browser. (The program may experience a brief freezing)'
@@ -228,20 +209,25 @@ class MainWindow(QMainWindow):
         """
         QApplication.processEvents()
 
-        options = webdriver.ChromeOptions()
-        options.add_argument('--headless')
-        options.add_argument('--disable-blink-features=AutomationControlled')
-        driver = webdriver.Chrome(options=options)
+        # 使用測試用的chrome
+        # options = webdriver.ChromeOptions()
+        # options.add_argument('--headless')
+        # options.add_argument('--disable-blink-features=AutomationControlled')
+
+        chrome_options = Options()
+        chrome_options.add_argument(f'user-data-dir={Chrome_Path}')  # 使用本機chrome
+        # chrome_options.add_argument('--headless')  # 不顯示
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")  # 禁用自動化檢測
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])  # 去掉自動化標誌
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        driver = webdriver.Chrome(options=chrome_options)
         driver = self.set_browser_for_civitai(driver)
 
         if not driver:
             self.manual_login()
             return
 
-        if sys.platform == 'darwin':
-            self.chromedriver_pid.update(self.get_pid(process_name='chromedriver'))
-            self.google_chrome_pid.update(self.get_pid(process_name='GoogleChrome'))
-
+        self.is_login_civitai = True
         self.freeze_main_window(unfreeze=True)
         return driver
 
@@ -262,8 +248,8 @@ class MainWindow(QMainWindow):
                 driver.add_cookie(cookie)
 
             driver.get('https://civitai.com/models')
-            driver.get(Check_Url)
-            if driver.title == Check_Title:
+            driver.get(Login_Check_Url)
+            if driver.title == Login_Check_Title:
                 cookies: list[dict] = driver.get_cookies()
                 with Cookie_File.open('wb') as f:
                     pickle.dump(cookies, f)
@@ -656,7 +642,7 @@ class MainWindow(QMainWindow):
         #     }
         # """)
 
-        self.progress_bar_task_name_list.append(task_name)
+        self.progress_bar_task_name.append(task_name)
 
         progress_layout = QHBoxLayout()
         progress_label = QLabel(task_name)
@@ -668,11 +654,11 @@ class MainWindow(QMainWindow):
         progress_layout.setStretch(0, 1)
         progress_layout.setStretch(1, 5)
 
-        self.progress_bar_data_dict[task_name] = ProgressBarData(progress_layout=progress_layout,
-                                                                 progress_bar_widget=progress_bar,
-                                                                 completed=0,
-                                                                 executed=0,
-                                                                 quantity=count)
+        self.progress_bar_data[task_name] = ProgressBarData(progress_layout=progress_layout,
+                                                            progress_bar_widget=progress_bar,
+                                                            completed=0,
+                                                            executed=0,
+                                                            quantity=count)
         self.ui.verticalLayout.addLayout(progress_layout)
 
     def update_process_bar(self, task_name: str, is_completed: bool) -> ProgressBarData:
@@ -682,7 +668,7 @@ class MainWindow(QMainWindow):
         :param is_completed: set to True, it will synchronously update the 'completed' attribute of the ProgressBarData.
         :return: ProgressBarData
         """
-        progress_bar_data: ProgressBarData = self.progress_bar_data_dict[task_name]
+        progress_bar_data: ProgressBarData = self.progress_bar_data[task_name]
         progress_bar_data.executed += 1
         if is_completed:
             completed_count = progress_bar_data.completed + 1
@@ -734,13 +720,13 @@ class MainWindow(QMainWindow):
         """
         Clear all progress bar layout
         """
-        for progress_name in self.progress_bar_task_name_list:
-            each_progres_bar_info: ProgressBarData = self.progress_bar_data_dict[progress_name]
+        for progress_name in self.progress_bar_task_name:
+            each_progres_bar_info: ProgressBarData = self.progress_bar_data[progress_name]
             layout = each_progres_bar_info.progress_layout
             self.clear_layout_widgets(layout)
 
-        self.progress_bar_task_name_list.clear()
-        self.progress_bar_data_dict.clear()
+        self.progress_bar_task_name.clear()
+        self.progress_bar_data.clear()
 
     def clear_layout_widgets(self, layout) -> None:
         """
@@ -752,32 +738,6 @@ class MainWindow(QMainWindow):
                 item.widget().deleteLater()
             elif item.layout():
                 self.clear_layout_widgets(item.layout())
-
-    def get_pid(self, process_name: str) -> list:
-        pid: list = []
-        paser = re.compile(r'^\S*\s+(\d+)\s+')
-
-        if process_name == 'GoogleChrome':
-            command = "ps aux | grep '[M]acOS/Google Chrome [^H]'"
-        elif process_name == 'chromedriver':
-            command = "ps aux | grep '[c]hromedriver.*chromedriver'"
-        else:
-            raise AssertionError('process_name must be either GoogleChrome or chromedriver')
-
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
-        if result.stdout:
-            for result in result.stdout.splitlines():
-                match = paser.match(result)
-                if match:
-                    pid.append(match.group(1))
-
-        return pid
-
-    def clear_chromedriver_process(self) -> None:
-        for chromedriver_pid in self.chromedriver_pid:
-            subprocess.run(f'kill -TERM {chromedriver_pid}', shell=True)
-        for google_chrome_pid in self.google_chrome_pid:
-            subprocess.run(f'kill -TERM {google_chrome_pid}', shell=True)
 
     def closeEvent(self, event) -> None:
         """
@@ -798,6 +758,7 @@ class MainWindow(QMainWindow):
                 with open(f'{datetime.now().strftime("%m-%d-%H:%M:%S")}.bringmeimage', 'wb') as f:
                     pickle.dump(record, f)
 
-        if sys.platform == 'darwin':
-            self.clear_chromedriver_process()
+        if self.driver_for_civitai:
+            self.driver_for_civitai.quit()
+
         event.accept()

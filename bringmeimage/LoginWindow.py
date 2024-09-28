@@ -8,13 +8,14 @@ logger = get_logger(__name__)
 
 
 class LoginWindow(QDialog):
+    """
+    QDialog window for setting the browser
+    """
     Login_Window_Start_Signal = Signal()
     Login_Window_Finish_Signal = Signal()
     Login_Window_ReLogin_Signal = Signal()
     Login_Window_Reject_Signal = Signal()
-    """
-    QDialog window for setting the browser
-    """
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.initUI()
