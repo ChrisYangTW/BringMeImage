@@ -29,7 +29,7 @@
          <string>Folder</string>
         </property>
         <property name="alignment">
-         <set>Qt::AlignCenter</set>
+         <set>Qt::AlignmentFlag::AlignCenter</set>
         </property>
        </widget>
       </item>
@@ -61,14 +61,14 @@
          <string>Login</string>
         </property>
         <property name="alignment">
-         <set>Qt::AlignCenter</set>
+         <set>Qt::AlignmentFlag::AlignCenter</set>
         </property>
        </widget>
       </item>
      </layout>
     </item>
     <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="4,4,1,1,1">
+     <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="4,4,1,1">
       <item>
        <widget class="QPushButton" name="clip_push_button">
         <property name="toolTip">
@@ -99,19 +99,6 @@
         </property>
         <property name="checked">
          <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="categorize_check_box">
-        <property name="toolTip">
-         <string>Automatically categorizing the path for storing images (with &quot;CivitAI&quot; checkbox selected)</string>
-        </property>
-        <property name="text">
-         <string>Categorize</string>
-        </property>
-        <property name="checked">
-         <bool>false</bool>
         </property>
        </widget>
       </item>

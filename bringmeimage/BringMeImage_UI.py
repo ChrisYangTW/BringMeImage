@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'BringMeImage_UI.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.6.1
+## Created by: Qt User Interface Compiler version 6.7.2
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -42,12 +42,12 @@ class Ui_MainWindow(object):
         self.horizontalLayout_1.setObjectName(u"horizontalLayout_1")
         self.folder_label = QLabel(self.centralwidget)
         self.folder_label.setObjectName(u"folder_label")
-        sizePolicy = QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.folder_label.sizePolicy().hasHeightForWidth())
         self.folder_label.setSizePolicy(sizePolicy)
-        self.folder_label.setAlignment(Qt.AlignCenter)
+        self.folder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.horizontalLayout_1.addWidget(self.folder_label)
 
@@ -62,7 +62,7 @@ class Ui_MainWindow(object):
         self.login_label.setObjectName(u"login_label")
         sizePolicy.setHeightForWidth(self.login_label.sizePolicy().hasHeightForWidth())
         self.login_label.setSizePolicy(sizePolicy)
-        self.login_label.setAlignment(Qt.AlignCenter)
+        self.login_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.horizontalLayout_1.addWidget(self.login_label)
 
@@ -90,12 +90,6 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_2.addWidget(self.civitai_check_box)
 
-        self.categorize_check_box = QCheckBox(self.centralwidget)
-        self.categorize_check_box.setObjectName(u"categorize_check_box")
-        self.categorize_check_box.setChecked(False)
-
-        self.horizontalLayout_2.addWidget(self.categorize_check_box)
-
         self.clear_push_button = QPushButton(self.centralwidget)
         self.clear_push_button.setObjectName(u"clear_push_button")
 
@@ -105,7 +99,6 @@ class Ui_MainWindow(object):
         self.horizontalLayout_2.setStretch(1, 4)
         self.horizontalLayout_2.setStretch(2, 1)
         self.horizontalLayout_2.setStretch(3, 1)
-        self.horizontalLayout_2.setStretch(4, 1)
 
         self.verticalLayout.addLayout(self.horizontalLayout_2)
 
@@ -166,10 +159,6 @@ class Ui_MainWindow(object):
         self.civitai_check_box.setToolTip(QCoreApplication.translate("MainWindow", u"Analyzing the image links for civitai", None))
 #endif // QT_CONFIG(tooltip)
         self.civitai_check_box.setText(QCoreApplication.translate("MainWindow", u"CivitAI", None))
-#if QT_CONFIG(tooltip)
-        self.categorize_check_box.setToolTip(QCoreApplication.translate("MainWindow", u"Automatically categorizing the path for storing images (with \"CivitAI\" checkbox selected)", None))
-#endif // QT_CONFIG(tooltip)
-        self.categorize_check_box.setText(QCoreApplication.translate("MainWindow", u"Categorize", None))
 #if QT_CONFIG(tooltip)
         self.clear_push_button.setToolTip(QCoreApplication.translate("MainWindow", u"Clear all record list and initialize the program", None))
 #endif // QT_CONFIG(tooltip)

@@ -7,7 +7,7 @@ class FailedUrlsWindow(QDialog):
     """
     QDialog window for displaying the failed download image links
     """
-    def __init__(self, process_failed_url_dict: dict, version_id_info_dict: dict, parent=None):
+    def __init__(self, process_failed_url_dict: dict, parent=None):
         super().__init__(parent)
         self.setWindowTitle('Failed url')
         self.setGeometry(100, 100, 600, 400)
@@ -23,8 +23,6 @@ class FailedUrlsWindow(QDialog):
             self.move(center_point.x() - self.width() / 2, center_point.y() - self.height() / 2)
 
         self.process_failed_url_dict = process_failed_url_dict
-        self.version_id_info_dict = version_id_info_dict
-        self.classified_process_failed_url_dict = {}
 
         if self.process_failed_url_dict:
             self.show_failed_urls_to_text_browser()
@@ -32,25 +30,21 @@ class FailedUrlsWindow(QDialog):
     def show_failed_urls_to_text_browser(self):
         # hint: process_failed_url_dict = {image_url1: ImageData1(dataclass), image_url2: ImageData2(dataclass),}
         # hint: version_id_info = {self.version_id: dataclass(version_name, model_id, model_name, creator)}
-        for image_url, image_data in self.process_failed_url_dict.items():
-            model_version_name = self.get_model_version_name(image_data.modelVersionId)
-            if model_version_name in self.classified_process_failed_url_dict:
-                self.classified_process_failed_url_dict[model_version_name].append(image_url)
-            else:
-                self.classified_process_failed_url_dict[model_version_name] = [image_url]
-
-        for name, url_list in self.classified_process_failed_url_dict.items():
-            self.display_text_browser.append(name)
+        for img_url, image_data in self.process_failed_url_dict.items():
+            self.display_text_browser.append(img_url)
             self.display_text_browser.append('')
-            for url in url_list:
-                self.display_text_browser.insertHtml(f'<a href="{url}">{url}</a><br>')
-
-    def get_model_version_name(self, modelVersionId: str) -> str:
-        return (
-            f'{version_id_data.model_name} {version_id_data.version_name}'
-            if (version_id_data := self.version_id_info_dict.get(modelVersionId))
-            else 'unfounded'
-        )
+            self.display_text_browser.insertHtml(f'<a href="{image_data.src}">{image_data.src}</a><br>')
+        #     model_version_name = self.get_model_version_name(image_data.modelVersionId)
+        #     if model_version_name in self.classified_process_failed_url_dict:
+        #         self.classified_process_failed_url_dict[model_version_name].append(image_url)
+        #     else:
+        #         self.classified_process_failed_url_dict[model_version_name] = [image_url]
+        #
+        # for name, url_list in self.classified_process_failed_url_dict.items():
+        #     self.display_text_browser.append(name)
+        #     self.display_text_browser.append('')
+        #     for url in url_list:
+        #         self.display_text_browser.insertHtml(f'<a href="{url}">{url}</a><br>')
 
     # Overrides the reject() to allow users to cancel the dialog using the ESC key
     def reject(self):
@@ -82,15 +76,16 @@ if __name__ == '__main__':
         def show_editable_window(self):
             data = {
                 'https://civitai.com/images/2805528': ImageData(url='https://civitai.com/images/2805528',
-                                                                real_url='', modelVersionId='', postId='',
-                                                                imageId='2805528', is_parsed=False),
+                                                                src='https://src/2805528',
+                                                                imageId='2805528',
+                                                                is_parsed=True),
                 'https://civitai.com/images/2805533': ImageData(url='https://civitai.com/images/2805533',
-                                                                real_url='', modelVersionId='', postId='',
-                                                                imageId='2805533', is_parsed=False),
+                                                                src='https://src/2805533',
+                                                                imageId='2805533',
+                                                                is_parsed=True),
             }
             history_window = FailedUrlsWindow(
                 process_failed_url_dict=data,
-                version_id_info_dict={},
                 parent=self)
             history_window.setWindowModality(Qt.ApplicationModal)
             history_window.show()

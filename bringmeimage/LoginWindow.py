@@ -1,7 +1,6 @@
 from PySide6.QtCore import Signal, Qt, Slot
 from PySide6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QPushButton, QWidget, QSizePolicy, QLabel,
                                QSpacerItem)
-from selenium.webdriver.chrome.webdriver import WebDriver
 
 from bringmeimage.LoggerConf import get_logger
 logger = get_logger(__name__)
@@ -37,7 +36,7 @@ class LoginWindow(QDialog):
 
         self.open_button = QPushButton('Open')
         self.open_button.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
-        self.open_button.clicked.connect(self.open)
+        self.open_button.clicked.connect(self.open_browser)
         self.v_layout.addWidget(self.open_button)
 
         self.spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
@@ -84,7 +83,7 @@ class LoginWindow(QDialog):
         label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         return label
 
-    def open(self) -> None:
+    def open_browser(self) -> None:
         """
         Notify the main thread to open a browser for manual login by the user
         :return:
