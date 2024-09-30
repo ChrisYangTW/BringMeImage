@@ -76,6 +76,15 @@ class MainWindow(QMainWindow):
             if reply == QMessageBox.No:
                 return
 
+            self.urls.clear()
+            self.process_failed_urls.clear()
+            self.clear_progress_bar()
+            self.operation_browser_insert_html(
+                color='cyan',
+                string='Clear all record',
+                prefix=True
+            )
+
         filter_str = 'Bring Me Image Files (*.bringmeimage)'
         file_path, _ = QFileDialog.getOpenFileName(self, 'Select File', '', filter_str, options=QFileDialog.ReadOnly)
         if file_path:
@@ -89,9 +98,6 @@ class MainWindow(QMainWindow):
                     prefix=True
                 )
             else:
-                self.urls.clear()
-                self.process_failed_urls.clear()
-                self.clear_progress_bar()
                 filename = file_path.rsplit('/', maxsplit=1)[-1]
                 self.process_the_record(filename, record)
 
@@ -103,6 +109,14 @@ class MainWindow(QMainWindow):
         )
 
         save_dir, civitai_is_checked, urls = record
+        if civitai_is_checked and not self.is_login_civitai:
+            self.operation_browser_insert_html(
+                color='pink',
+                string='There are images from civitai, you need to login first',
+                prefix=True
+            )
+            return
+
         self.save_dir = save_dir
         self.ui.folder_line_edit.setText(str(save_dir))
         self.ui.civitai_check_box.setChecked(civitai_is_checked)
@@ -171,15 +185,17 @@ class MainWindow(QMainWindow):
         if event.button() == Qt.LeftButton and event.type() == QEvent.MouseButtonDblClick:
             if not self.driver_page:
                 self.operation_browser_insert_html(
-                    color='cyan',
-                    string='Wait for set up the browser. (The program may experience a brief freezing)'
+                    color='green',
+                    string='Wait for set up the browser. (The program may experience a brief freezing)',
+                    prefix=True,
                 )
                 self.freeze_main_window()
                 self.driver_page = self.get_browser_page_for_civitai()
             else:
                 self.operation_browser_insert_html(
-                    color='cyan',
-                    string='Already logged in.'
+                    color='green',
+                    string='Already logged in.',
+                    prefix=True,
                 )
 
     def get_browser_page_for_civitai(self) -> Page | None:
@@ -224,8 +240,9 @@ class MainWindow(QMainWindow):
                     json.dump(cookies, f)
                 self.ui.login_label.setStyleSheet('color: green;')
                 self.operation_browser_insert_html(
-                    color='cyan',
-                    string='Browser for civitai is already loaded.'
+                    color='green',
+                    string='Browser for civitai is already loaded.',
+                    prefix=True,
                 )
                 self.is_login_civitai = True
                 return driver_page
@@ -343,8 +360,8 @@ class MainWindow(QMainWindow):
 
         if self.ui.civitai_check_box.isChecked() and not self.is_login_civitai:
             self.operation_browser_insert_html(
-                color='red',
-                string='Login before Clip',
+                color='pink',
+                string='Because CivitAI is checked, you need to login first.',
                 prefix=True
             )
             return
@@ -425,6 +442,8 @@ class MainWindow(QMainWindow):
         for img_url, img_data in self.urls.items():
             if img_data.is_parsed:
                 self.urls_parsed[img_url] = img_data
+                self.update_process_bar(task_name='Browsing', is_completed=True)
+                QApplication.processEvents()
                 continue
 
             img_src = self.parse_image_scr(img_url)
@@ -437,7 +456,6 @@ class MainWindow(QMainWindow):
 
             self.update_process_bar(task_name='Browsing', is_completed=True)
             QApplication.processEvents()
-            # todo: process_bar is not correct
 
         self.image_parse_completed()
 
